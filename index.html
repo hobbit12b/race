@@ -1,753 +1,233 @@
 <!doctype html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Letter Race 3D</title>
-  <style>
-    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0f14; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    #ui {
-      position: fixed; left: 12px; right: 12px; top: 10px;
-      display: flex; gap: 10px; align-items: center; justify-content: space-between;
-      pointer-events: none;
-    }
-    .pill {
-      pointer-events: auto;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: #fff;
-      padding: 10px 12px;
-      border-radius: 14px;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      display:flex; align-items:center; gap:10px;
-      user-select: none;
-    }
-    #targetLetter { font-size: 18px; font-weight: 800; display:flex; align-items:center; gap:10px; }
-    #bigLetter {
-      width: 46px; height: 46px; border-radius: 12px;
-      background: rgba(255,255,255,0.16);
-      display:flex; align-items:center; justify-content:center;
-      font-size: 24px; font-weight: 900;
-      text-transform: lowercase;
-    }
-    #status { font-size: 18px; font-weight: 800; }
-    #help {
-      position: fixed; left: 12px; right: 12px; bottom: 12px;
-      display:flex; justify-content: space-between; gap: 10px;
-      pointer-events: none;
-    }
-    .btn {
-      pointer-events: auto;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.14);
-      color:#fff;
-      padding: 14px 16px;
-      border-radius: 16px;
-      font-weight: 800;
-      min-width: 120px;
-      text-align:center;
-      user-select:none;
-      touch-action: manipulation;
-    }
-    #overlay {
-      position: fixed; inset: 0;
-      display:flex; align-items:center; justify-content:center;
-      background: radial-gradient(ellipse at center, rgba(20,30,45,0.92), rgba(5,7,10,0.96));
-      color:#fff;
-      z-index: 10;
-    }
-    #card {
-      width: min(760px, calc(100% - 24px));
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 18px;
-      padding: 18px;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-    }
-    #card h1 { margin: 0 0 8px 0; font-size: 22px; }
-    #card p { margin: 6px 0; opacity: 0.92; line-height: 1.35; }
-    #card .row { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-    #card .row button {
-      background: rgba(255,255,255,0.16);
-      border: 1px solid rgba(255,255,255,0.16);
-      color:#fff;
-      padding: 12px 14px;
-      border-radius: 14px;
-      font-weight: 900;
-      cursor: pointer;
-    }
-    #err {
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(255,80,80,0.12);
-      border: 1px solid rgba(255,80,80,0.18);
-      color: rgba(255,255,255,0.92);
-      display: none;
-      white-space: pre-wrap;
-      font-size: 13px;
-      line-height: 1.25;
-    }
-    canvas { display:block; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Letter Race 3D</title>
+
+<style>
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0b0f14;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+#ui{position:fixed;left:12px;right:12px;top:10px;display:flex;justify-content:space-between;pointer-events:none}
+.pill{pointer-events:auto;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;padding:10px 12px;border-radius:14px;display:flex;gap:10px}
+#bigLetter{width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900}
+#help{position:fixed;left:12px;right:12px;bottom:12px;display:flex;justify-content:space-between;pointer-events:none}
+.btn{pointer-events:auto;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);color:#fff;padding:14px 16px;border-radius:16px;font-weight:800;min-width:120px;text-align:center}
+#overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(20,30,45,.92),rgba(5,7,10,.96));color:#fff}
+#card{width:min(760px,calc(100% - 24px));background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:18px}
+</style>
 </head>
 <body>
 
 <div id="overlay">
-  <div id="card">
-    <h1>Letter Race 3D</h1>
-    <p>Rustige race, pak de juiste kleine letter, klank is fonemisch via geluid.</p>
-    <p>Bediening, tik links of rechts om van baan te wisselen.</p>
-    <div class="row">
-      <button id="startBtn">Start</button>
-      <button id="tempoBtn">Tempo: extra rustig</button>
-      <button id="soundBtn">Geluid: aan</button>
-    </div>
-    <div id="err"></div>
-  </div>
+<div id="card">
+<h1>Letter Race 3D</h1>
+<p>Pak de juiste kleine letter. Weg draait zoals een echte race.</p>
+<button id="startBtn">Start</button>
+</div>
 </div>
 
 <div id="ui">
-  <div class="pill" id="targetLetter">
-    <div id="bigLetter">b</div>
-    <div>Doelletter</div>
-  </div>
-  <div class="pill">
-    <div id="status">🙂</div>
-    <div id="score">Score: 0</div>
-  </div>
+<div class="pill"><div id="bigLetter">b</div><div>Doelletter</div></div>
+<div class="pill"><div id="score">Score: 0</div></div>
 </div>
 
 <div id="help">
-  <div class="btn" id="leftBtn">Links</div>
-  <div class="btn" id="rightBtn">Rechts</div>
+<div class="btn" id="leftBtn">Links</div>
+<div class="btn" id="rightBtn">Rechts</div>
 </div>
 
 <script type="module">
-  import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-
-  const errBox = document.getElementById("err");
-  window.addEventListener("error", (e) => {
-    errBox.style.display = "block";
-    errBox.textContent = "Er ging iets mis:\n" + (e?.message || e);
-  });
-
-  let scene, camera, renderer;
-
-  let car;
-  let lane = 1;
-  const laneOffsets = [-2.2, 0, 2.2];
-  const carZ = 2.2;
-
-  let baseSpeed = 0.028;
-  let speed = baseSpeed;
-  let turboTime = 0;
-  let slowTime = 0;
-
-  const activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
-  let target = "b";
-  let score = 0;
-  let pickups = [];
-  let lastSpawnZ = -22;
-
-  let roadMesh = null;
-  let roadGeom = null;
-  let roadTexture = null;
-
-  const ROAD = {
-    width: 12.0,
-    length: 260.0,
-    segZ: 220,
-    curveAmp: 2.4,
-    curvePeriod: 170.0,
-    phase: 0.0
-  };
-
-  const uiBig = document.getElementById("bigLetter");
-  const uiStatus = document.getElementById("status");
-  const uiScore = document.getElementById("score");
-  const overlay = document.getElementById("overlay");
-  let running = false;
-
-  let soundOn = true;
-  let audioCtx = null;
-
-  const rng = () => Math.random();
-
-  function ensureAudio() {
-    if (!soundOn) return null;
-    if (!audioCtx) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      audioCtx = new AC();
-    }
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    return audioCtx;
-  }
-
-  function makeNoiseBuffer(ctx, seconds = 0.25) {
-    const sr = ctx.sampleRate;
-    const len = Math.floor(sr * seconds);
-    const buffer = ctx.createBuffer(1, len, sr);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1);
-    return buffer;
-  }
-
-  function playFricative(ctx, { voiced = false, duration = 0.26, cutoff = 2200, gain = 0.14, voiceHz = 170 } = {}) {
-    const now = ctx.currentTime;
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = makeNoiseBuffer(ctx, duration);
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.frequency.value = cutoff;
-
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(gain, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    noise.connect(filt);
-    filt.connect(g);
-    g.connect(ctx.destination);
-
-    noise.start(now);
-    noise.stop(now + duration);
-
-    if (voiced) {
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = voiceHz;
-
-      const vg = ctx.createGain();
-      vg.gain.setValueAtTime(0.0001, now);
-      vg.gain.exponentialRampToValueAtTime(gain * 0.55, now + 0.02);
-      vg.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-      osc.connect(vg);
-      vg.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + duration);
-    }
-  }
-
-  function playHum(ctx, { duration = 0.28, hz = 180, gain = 0.16 } = {}) {
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = hz;
-
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(gain, now + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    osc.connect(g);
-    g.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + duration);
-  }
-
-  function playPlosive(ctx, { duration = 0.14, freq = 240, gain = 0.18 } = {}) {
-    const now = ctx.currentTime;
-
-    const osc = ctx.createOscillator();
-    osc.type = "square";
-    osc.frequency.value = freq;
-
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(gain, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    const filt = ctx.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.frequency.value = 900;
-
-    osc.connect(filt);
-    filt.connect(g);
-    g.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + duration);
-  }
-
-  function speakPhoneme(letter) {
-    if (!soundOn) return;
-    const ctx = ensureAudio();
-    if (!ctx) return;
-
-    const l = String(letter).toLowerCase();
-
-    if (l === "m") return playHum(ctx, { hz: 170, duration: 0.30, gain: 0.15 });
-    if (l === "l") return playHum(ctx, { hz: 210, duration: 0.22, gain: 0.12 });
-    if (l === "h") return playFricative(ctx, { voiced: false, cutoff: 1400, duration: 0.18, gain: 0.12 });
-
-    if (l === "s") return playFricative(ctx, { voiced: false, cutoff: 3200, duration: 0.24, gain: 0.14 });
-    if (l === "z") return playFricative(ctx, { voiced: true, cutoff: 3000, duration: 0.24, gain: 0.13, voiceHz: 170 });
-    if (l === "v") return playFricative(ctx, { voiced: true, cutoff: 1700, duration: 0.22, gain: 0.12, voiceHz: 160 });
-
-    if (l === "b") return playPlosive(ctx, { freq: 220, duration: 0.12, gain: 0.18 });
-    if (l === "k") return playPlosive(ctx, { freq: 280, duration: 0.11, gain: 0.16 });
-    if (l === "g") return playPlosive(ctx, { freq: 200, duration: 0.12, gain: 0.16 });
-
-    if (l === "w") {
-      playHum(ctx, { hz: 140, duration: 0.12, gain: 0.10 });
-      setTimeout(() => playHum(ctx, { hz: 200, duration: 0.16, gain: 0.11 }), 80);
-      return;
-    }
-  }
-
-  function beep(ok = true) {
-    if (!soundOn) return;
-    const ctx = ensureAudio();
-    if (!ctx) return;
-
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = ok ? 520 : 210;
-
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.07, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + (ok ? 0.09 : 0.12));
-
-    osc.connect(g);
-    g.connect(ctx.destination);
-
-    osc.start(now);
-    osc.stop(now + (ok ? 0.10 : 0.13));
-  }
-
-  function setStatus(emoji) { uiStatus.textContent = emoji; }
-  function updateScore() { uiScore.textContent = `Score: ${score}`; }
-
-  function setTarget(newTarget) {
-    target = String(newTarget).toLowerCase();
-    uiBig.textContent = target;
-    speakPhoneme(target);
-  }
-
-  function pickNewTarget() {
-    setTarget(activeLetters[Math.floor(rng() * activeLetters.length)]);
-  }
-
-  function trackOffsetX(z) {
-    return ROAD.curveAmp * Math.sin(((z + ROAD.phase) / ROAD.curvePeriod) * Math.PI * 2);
-  }
-
-  function laneXAtZ(laneIndex, z) {
-    return trackOffsetX(z) + laneOffsets[laneIndex];
-  }
-
-  function buildRoadTexture() {
-    const c = document.createElement("canvas");
-    c.width = 512;
-    c.height = 1024;
-    const ctx = c.getContext("2d");
-
-    ctx.fillStyle = "#111a24";
-    ctx.fillRect(0, 0, c.width, c.height);
-
-    ctx.fillStyle = "rgba(255,255,255,0.25)";
-    ctx.fillRect(40, 0, 6, c.height);
-    ctx.fillRect(c.width - 46, 0, 6, c.height);
-
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    const mid = Math.floor(c.width / 2);
-    for (let y = 0; y < c.height; y += 120) ctx.fillRect(mid - 4, y + 20, 8, 60);
-
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    const leftLane = Math.floor(c.width * 0.36);
-    const rightLane = Math.floor(c.width * 0.64);
-    for (let y = 0; y < c.height; y += 120) {
-      ctx.fillRect(leftLane - 3, y + 30, 6, 40);
-      ctx.fillRect(rightLane - 3, y + 30, 6, 40);
-    }
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(1, 6);
-    tex.anisotropy = 8;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
-
-  function cacheRoadBase() {
-    const pos = roadGeom.attributes.position;
-    const baseX = new Float32Array(pos.count);
-    const baseZ = new Float32Array(pos.count);
-
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-      baseX[i] = pos.array[ix + 0];
-      baseZ[i] = pos.array[ix + 2];
-    }
-
-    roadGeom.userData.baseX = baseX;
-    roadGeom.userData.baseZ = baseZ;
-  }
-
-  function bendRoad() {
-    const pos = roadGeom.attributes.position;
-    const arr = pos.array;
-
-    const baseX = roadGeom.userData.baseX;
-    const baseZ = roadGeom.userData.baseZ;
-
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-      const zLocal = baseZ[i];
-      const zWorld = zLocal + roadMesh.position.z;
-      const off = trackOffsetX(zWorld);
-      arr[ix + 0] = baseX[i] + off;
-    }
-
-    pos.needsUpdate = true;
-    roadGeom.computeVertexNormals();
-  }
-
-  function buildRoadMesh() {
-    roadTexture = buildRoadTexture();
-
-    roadGeom = new THREE.PlaneGeometry(ROAD.width, ROAD.length, 1, ROAD.segZ);
-    roadGeom.rotateX(-Math.PI / 2);
-
-    cacheRoadBase();
-
-    const mat = new THREE.MeshStandardMaterial({
-      map: roadTexture,
-      roughness: 0.95,
-      metalness: 0.0
-    });
-
-    roadMesh = new THREE.Mesh(roadGeom, mat);
-    roadMesh.position.set(0, 0, -ROAD.length * 0.55);
-    scene.add(roadMesh);
-
-    bendRoad();
-  }
-
-  function makeTextSprite(letter) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext("2d");
-
-    ctx.fillStyle = "rgba(255,255,255,0.08)";
-    ctx.fillRect(0,0,256,256);
-
-    ctx.fillStyle = "rgba(255,255,255,0.22)";
-    ctx.fillRect(20,20,216,216);
-
-    ctx.font = "900 140px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "white";
-    ctx.fillText(String(letter).toLowerCase(), 128, 138);
-
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.anisotropy = 8;
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(1.25, 1.25, 1);
-    return sprite;
-  }
-
-  function createPickup(letter, laneIndex, z) {
-    const group = new THREE.Group();
-
-    const baseGeom = new THREE.BoxGeometry(1.05, 0.7, 1.05);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.45, metalness: 0.18 });
-    const base = new THREE.Mesh(baseGeom, baseMat);
-    base.position.y = 0.38;
-    group.add(base);
-
-    const sprite = makeTextSprite(letter);
-    sprite.position.set(0, 1.05, 0.55);
-    group.add(sprite);
-
-    group.position.set(laneXAtZ(laneIndex, z), 0, z);
-    group.userData = { letter: String(letter).toLowerCase(), laneIndex, hit: false };
-
-    scene.add(group);
-    pickups.push(group);
-  }
-
-  function spawnSet() {
-    const z = lastSpawnZ - 40 - rng() * 22;
-    lastSpawnZ = z;
-
-    const correctLane = Math.floor(rng() * 3);
-
-    createPickup(target, correctLane, z);
-
-    const others = activeLetters.filter(l => l !== target);
-    for (let i = 0; i < 3; i++) {
-      if (i === correctLane) continue;
-      const l = others[Math.floor(rng() * others.length)];
-      createPickup(l, i, z);
-    }
-  }
-
-  function setCarTexture(key) {
-    if (!car || !car.userData || !car.userData.plane) return;
-    const t = car.userData.tex[key];
-    if (!t) return;
-    car.userData.plane.material.map = t;
-    car.userData.plane.material.needsUpdate = true;
-  }
-
-  function setupThree() {
-    scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x0b0f14, 12, 190);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    document.body.appendChild(renderer.domElement);
-
-    const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = 10.8;
-    camera = new THREE.OrthographicCamera(
-      -viewSize * aspect, viewSize * aspect,
-      viewSize, -viewSize,
-      0.1, 800
-    );
-    camera.position.set(0, 16, 12);
-    camera.lookAt(0, 0.8, -18);
-
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x1b2430, 1.0);
-    scene.add(hemi);
-
-    const dir = new THREE.DirectionalLight(0xffffff, 1.05);
-    dir.position.set(6, 12, 6);
-    scene.add(dir);
-
-    buildRoadMesh();
-
-    const texLoader = new THREE.TextureLoader();
-    const carTex = {
-      straight: texLoader.load("./car_straight.png"),
-      left: texLoader.load("./car_left.png"),
-      right: texLoader.load("./car_right.png"),
-    };
-    for (const k of Object.keys(carTex)) {
-      carTex[k].colorSpace = THREE.SRGBColorSpace;
-      carTex[k].anisotropy = 8;
-    }
-
-    const carGroup = new THREE.Group();
-    const carPlaneGeom = new THREE.PlaneGeometry(2.9, 2.9);
-    const carPlaneMat = new THREE.MeshBasicMaterial({ map: carTex.straight, transparent: true });
-    const carPlane = new THREE.Mesh(carPlaneGeom, carPlaneMat);
-    carPlane.position.set(0, 1.15, 0);
-    carPlane.rotation.x = -0.22;
-    carGroup.add(carPlane);
-
-    const shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(1.05, 26),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 })
-    );
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = 0.02;
-    carGroup.add(shadow);
-
-    car = carGroup;
-    car.position.set(laneXAtZ(lane, carZ), 0, carZ);
-    scene.add(car);
-
-    car.userData = {
-      plane: carPlane,
-      tex: carTex,
-      blinkFrames: 0,
-      wobbleFrames: 0,
-      wobbleDir: 0
-    };
-
-    setTarget(activeLetters[0]);
-    for (let i = 0; i < 3; i++) spawnSet();
-
-    window.addEventListener("resize", onResize);
-  }
-
-  function onResize() {
-    if (!renderer || !camera) return;
-    renderer.setSize(window.innerWidth, window.innerHeight);
-
-    const aspect = window.innerWidth / window.innerHeight;
-    const viewSize = 10.8;
-    camera.left = -viewSize * aspect;
-    camera.right = viewSize * aspect;
-    camera.top = viewSize;
-    camera.bottom = -viewSize;
-    camera.updateProjectionMatrix();
-  }
-
-  function moveLane(dir) {
-    const prev = lane;
-    lane = Math.max(0, Math.min(2, lane + dir));
-    if (lane === prev) return;
-
-    const key = dir < 0 ? "left" : "right";
-    setCarTexture(key);
-    car.userData.blinkFrames = 28;
-
-    car.userData.wobbleFrames = 34;
-    car.userData.wobbleDir = dir < 0 ? -1 : 1;
-  }
-
-  function checkCollisions() {
-    for (const p of pickups) {
-      if (p.userData.hit) continue;
-
-      const dz = Math.abs(p.position.z - carZ);
-      const dx = Math.abs(p.position.x - car.position.x);
-
-      if (dz < 1.15 && dx < 1.05) {
-        p.userData.hit = true;
-
-        const ok = p.userData.letter === target;
-        if (ok) {
-          score += 1;
-          turboTime = 75;
-          slowTime = 0;
-          setStatus("😄");
-          beep(true);
-          pickNewTarget();
-        } else {
-          slowTime = 95;
-          turboTime = 0;
-          setStatus("😬");
-          beep(false);
-          speakPhoneme(target);
-        }
-
-        updateScore();
-        scene.remove(p);
-      }
-    }
-    pickups = pickups.filter(p => !p.userData.hit);
-  }
-
-  function tick() {
-    if (!running) return;
-
-    let targetSpeed = baseSpeed;
-    if (turboTime > 0) {
-      turboTime -= 1;
-      targetSpeed = baseSpeed * 1.12;
-    } else if (slowTime > 0) {
-      slowTime -= 1;
-      targetSpeed = baseSpeed * 0.58;
-    } else {
-      setStatus("🙂");
-    }
-    speed += (targetSpeed - speed) * 0.06;
-
-    const forward = speed * 10;
-
-    ROAD.phase += forward;
-
-    if (roadTexture) roadTexture.offset.y = (roadTexture.offset.y + forward * 0.006) % 1;
-    if (roadGeom && roadMesh) bendRoad();
-
-    const desiredX = laneXAtZ(lane, carZ);
-    car.position.x += (desiredX - car.position.x) * 0.11;
-
-    if (car.userData.blinkFrames > 0) {
-      car.userData.blinkFrames -= 1;
-      if (car.userData.blinkFrames === 0) setCarTexture("straight");
-    }
-
-    if (car.userData.wobbleFrames > 0) {
-      car.userData.wobbleFrames -= 1;
-      const t = car.userData.wobbleFrames / 34;
-      const wobble = Math.sin((1 - t) * Math.PI) * 0.16 * car.userData.wobbleDir;
-      car.rotation.z = wobble;
-      car.rotation.y = wobble * 0.25;
-    } else {
-      car.rotation.z += (0 - car.rotation.z) * 0.18;
-      car.rotation.y += (0 - car.rotation.y) * 0.18;
-    }
-
-    for (const p of pickups) {
-      p.position.z += forward;
-      p.position.x = laneXAtZ(p.userData.laneIndex, p.position.z);
-
-      if (p.position.z > 10) {
-        scene.remove(p);
-        p.userData.hit = true;
-      }
-    }
-    pickups = pickups.filter(p => !p.userData.hit);
-
-    while (pickups.length < 9) spawnSet();
-
-    checkCollisions();
-
-    camera.position.x += (car.position.x - camera.position.x) * 0.06;
-    camera.lookAt(camera.position.x, 0.8, -18);
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(tick);
-  }
-
-  function bindControls() {
-    const leftBtn = document.getElementById("leftBtn");
-    const rightBtn = document.getElementById("rightBtn");
-
-    const left = () => moveLane(-1);
-    const right = () => moveLane(1);
-
-    leftBtn.addEventListener("pointerdown", () => { ensureAudio(); left(); });
-    rightBtn.addEventListener("pointerdown", () => { ensureAudio(); right(); });
-
-    window.addEventListener("pointerdown", (e) => {
-      ensureAudio();
-      const x = e.clientX / window.innerWidth;
-      if (x < 0.40) left();
-      else if (x > 0.60) right();
-    }, { passive: true });
-  }
-
-  function startGame() {
-    if (!scene) setupThree();
-    ensureAudio();
-    running = true;
-    overlay.style.display = "none";
-    tick();
-  }
-
-  document.getElementById("startBtn").addEventListener("click", startGame);
-
-  document.getElementById("tempoBtn").addEventListener("click", (e) => {
-    if (baseSpeed > 0.024) {
-      baseSpeed = 0.019;
-      e.target.textContent = "Tempo: super rustig";
-    } else {
-      baseSpeed = 0.028;
-      e.target.textContent = "Tempo: extra rustig";
-    }
-  });
-
-  document.getElementById("soundBtn").addEventListener("click", (e) => {
-    soundOn = !soundOn;
-    e.target.textContent = soundOn ? "Geluid: aan" : "Geluid: uit";
-    if (!soundOn && audioCtx) {
-      try { audioCtx.suspend(); } catch {}
-    } else {
-      ensureAudio();
-      speakPhoneme(target);
-    }
-  });
-
-  bindControls();
+import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+
+let scene,camera,renderer;
+let car,lane=1;
+const laneOffsets=[-2.2,0,2.2];
+const carZ=2.2;
+
+let speed=.028;
+let score=0;
+
+const activeLetters=["b","g","v","m","z","h","k","l","s","w"];
+let target="b";
+let pickups=[];
+
+let roadMesh,roadGeom,roadTexture;
+
+const ROAD={
+width:12,
+length:260,
+segZ:260,
+phase:0,
+amp1:3.4,
+per1:210,
+amp2:1.9,
+per2:95,
+blockAmp:1.8,
+blockPer:160,
+bankMax:.22
+};
+
+const uiBig=document.getElementById("bigLetter");
+const uiScore=document.getElementById("score");
+
+function smoothStep(t){return t*t*(3-2*t)}
+function blockWave(z,p){const x=((z+ROAD.phase)/p)%1;const a=smoothStep(Math.min(1,x*2));const b=smoothStep(Math.max(0,(x-.5)*2));return(a-b)*2-1}
+
+function trackOffsetX(z){
+return ROAD.amp1*Math.sin(((z+ROAD.phase)/ROAD.per1)*Math.PI*2)
++ROAD.amp2*Math.sin(((z+ROAD.phase)/ROAD.per2)*Math.PI*2)
++ROAD.blockAmp*blockWave(z,ROAD.blockPer)
+}
+
+function trackDeriv(z){const dz=.25;return(trackOffsetX(z+dz)-trackOffsetX(z-dz))/(2*dz)}
+function trackBank(z){return THREE.MathUtils.clamp(trackDeriv(z)*.18,-ROAD.bankMax,ROAD.bankMax)}
+
+function laneXAtZ(lane,z){return trackOffsetX(z)+laneOffsets[lane]}
+
+function buildRoadTexture(){
+const c=document.createElement("canvas");c.width=512;c.height=1024;
+const ctx=c.getContext("2d");
+ctx.fillStyle="#111a24";ctx.fillRect(0,0,c.width,c.height);
+ctx.fillStyle="#fff";for(let y=0;y<c.height;y+=120)ctx.fillRect(c.width/2-4,y+20,8,60);
+const tex=new THREE.CanvasTexture(c);tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(1,6);return tex
+}
+
+function cacheRoadBase(){
+const pos=roadGeom.attributes.position;
+const baseX=new Float32Array(pos.count);
+const baseZ=new Float32Array(pos.count);
+for(let i=0;i<pos.count;i++){const ix=i*3;baseX[i]=pos.array[ix];baseZ[i]=pos.array[ix+2]}
+roadGeom.userData.baseX=baseX;roadGeom.userData.baseZ=baseZ
+}
+
+function bendRoad(){
+const pos=roadGeom.attributes.position;const arr=pos.array;
+const baseX=roadGeom.userData.baseX;const baseZ=roadGeom.userData.baseZ;
+for(let i=0;i<pos.count;i++){
+const ix=i*3;
+const zWorld=baseZ[i]+roadMesh.position.z;
+const off=trackOffsetX(zWorld);
+const bank=trackBank(zWorld);
+const side=baseX[i]/(ROAD.width*.5);
+arr[ix]=baseX[i]+off;
+arr[ix+1]=side*Math.sin(bank)*.22
+}
+pos.needsUpdate=true;roadGeom.computeVertexNormals()
+}
+
+function buildRoad(){
+roadTexture=buildRoadTexture();
+roadGeom=new THREE.PlaneGeometry(ROAD.width,ROAD.length,1,ROAD.segZ);
+roadGeom.rotateX(-Math.PI/2);
+cacheRoadBase();
+const mat=new THREE.MeshStandardMaterial({map:roadTexture});
+roadMesh=new THREE.Mesh(roadGeom,mat);
+roadMesh.position.z=-ROAD.length*.55;
+scene.add(roadMesh);
+bendRoad()
+}
+
+function makeLetter(letter){
+const canvas=document.createElement("canvas");canvas.width=256;canvas.height=256;
+const ctx=canvas.getContext("2d");
+ctx.fillStyle="rgba(255,255,255,.2)";ctx.fillRect(0,0,256,256);
+ctx.fillStyle="#fff";ctx.font="bold 140px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ctx.fillText(letter,128,140);
+const tex=new THREE.CanvasTexture(canvas);
+const mat=new THREE.SpriteMaterial({map:tex});
+const sprite=new THREE.Sprite(mat);
+sprite.scale.set(1.3,1.3,1);
+return sprite
+}
+
+function createPickup(letter,lane,z){
+const g=new THREE.Group();
+const box=new THREE.Mesh(new THREE.BoxGeometry(1,.7,1),new THREE.MeshStandardMaterial({color:0x9aa6b2}));
+box.position.y=.35;g.add(box);
+const spr=makeLetter(letter);spr.position.y=1;g.add(spr);
+g.position.set(laneXAtZ(lane,z),0,z);
+g.userData={letter,lane};
+scene.add(g);pickups.push(g)
+}
+
+function spawnSet(){
+const z=-40-Math.random()*20;
+const correct=Math.floor(Math.random()*3);
+createPickup(target,correct,z);
+const others=activeLetters.filter(l=>l!==target);
+for(let i=0;i<3;i++)if(i!==correct)createPickup(others[Math.floor(Math.random()*others.length)],i,z)
+}
+
+function setTarget(l){target=l;uiBig.textContent=l}
+function pickNew(){setTarget(activeLetters[Math.floor(Math.random()*activeLetters.length)])}
+
+function setup(){
+scene=new THREE.Scene();
+camera=new THREE.OrthographicCamera(-10,10,10,-10,.1,800);
+camera.position.set(0,16,12);camera.lookAt(0,0,-18);
+renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x222,1));
+const d=new THREE.DirectionalLight(0xffffff,1);d.position.set(5,10,5);scene.add(d);
+
+buildRoad();
+
+const texLoader=new THREE.TextureLoader();
+const tex={s:texLoader.load("./car_straight.png"),l:texLoader.load("./car_left.png"),r:texLoader.load("./car_right.png")};
+
+const group=new THREE.Group();
+const plane=new THREE.Mesh(new THREE.PlaneGeometry(3,3),new THREE.MeshBasicMaterial({map:tex.s,transparent:true}));
+plane.rotation.x=-.2;plane.position.y=1.2;group.add(plane);
+car=group;scene.add(car);
+car.userData={plane,tex,blink:0};
+
+setTarget(activeLetters[0]);
+for(let i=0;i<3;i++)spawnSet()
+}
+
+function moveLane(dir){
+lane=Math.max(0,Math.min(2,lane+dir));
+car.userData.plane.material.map=dir<0?car.userData.tex.l:car.userData.tex.r;
+car.userData.blink=25
+}
+
+function tick(){
+ROAD.phase+=speed*10;
+roadTexture.offset.y=(roadTexture.offset.y+speed*.06)%1;
+bendRoad();
+
+const desiredX=laneXAtZ(lane,carZ);
+car.position.x+=(desiredX-car.position.x)*.1;
+
+const bank=trackBank(carZ);
+car.rotation.z+=(bank*.7-car.rotation.z)*.1;
+
+if(car.userData.blink>0){car.userData.blink--;if(!car.userData.blink)car.userData.plane.material.map=car.userData.tex.s}
+
+for(const p of pickups){
+p.position.z+=speed*10;
+p.position.x=laneXAtZ(p.userData.lane,p.position.z);
+if(Math.abs(p.position.z-carZ)<1&&Math.abs(p.position.x-car.position.x)<1){
+if(p.userData.letter===target){score++;pickNew()}
+uiScore.textContent="Score: "+score;
+scene.remove(p);p.hit=true
+}}
+pickups=pickups.filter(p=>!p.hit);
+while(pickups.length<9)spawnSet();
+
+renderer.render(scene,camera);
+requestAnimationFrame(tick)
+}
+
+document.getElementById("startBtn").onclick=()=>{
+setup();document.getElementById("overlay").style.display="none";tick()
+};
+
+document.getElementById("leftBtn").onclick=()=>moveLane(-1);
+document.getElementById("rightBtn").onclick=()=>moveLane(1);
+window.addEventListener("pointerdown",e=>{const x=e.clientX/window.innerWidth;if(x<.4)moveLane(-1);if(x>.6)moveLane(1)})
 </script>
 </body>
 </html>
