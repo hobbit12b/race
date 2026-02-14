@@ -2,701 +2,472 @@
 <html lang="nl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ruimte Missie, Vormen</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Letter Race 3D</title>
   <style>
-    :root{
-      --panel: rgba(10, 12, 24, 0.55);
-      --panel2: rgba(10, 12, 24, 0.35);
-      --glow: 0 0 25px rgba(120, 170, 255, 0.25);
-      --shadow: 0 18px 40px rgba(0,0,0,0.45);
+    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#0b0f14; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #ui {
+      position: fixed; left: 12px; right: 12px; top: 10px;
+      display: flex; gap: 10px; align-items: center; justify-content: space-between;
+      pointer-events: none;
     }
-
-    html, body { height:100%; }
-    body{
-      margin:0;
-      overflow:hidden;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      color:#fff;
-      background:
-        radial-gradient(1200px 800px at 20% 10%, rgba(120,170,255,0.30), transparent 60%),
-        radial-gradient(900px 700px at 90% 15%, rgba(255,140,200,0.22), transparent 55%),
-        radial-gradient(900px 700px at 50% 90%, rgba(120,255,210,0.12), transparent 55%),
-        radial-gradient(circle at top, #121430, #03040a 70%);
-    }
-
-    canvas#stars{
-      position:fixed;
-      inset:0;
-      z-index:0;
-    }
-
-    .hud{
-      position:relative;
-      z-index:2;
-      padding:18px 20px;
-      display:flex;
-      gap:14px;
-      align-items:center;
-      justify-content:space-between;
-    }
-
-    .title{
-      display:flex;
-      gap:12px;
-      align-items:center;
-      padding:12px 14px;
-      border-radius:18px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-    }
-    .badge{
-      font-weight:800;
-      letter-spacing:0.3px;
-      padding:8px 10px;
-      border-radius:14px;
+    .pill {
+      pointer-events: auto;
       background: rgba(255,255,255,0.10);
-      box-shadow: var(--glow);
-      white-space:nowrap;
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 14px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display:flex; align-items:center; gap:10px;
+      user-select: none;
     }
-    .subtitle{
-      font-size:14px;
-      opacity:0.9;
+    #targetLetter {
+      font-size: 22px; font-weight: 800; letter-spacing: 0.5px;
+      display:flex; align-items:center; gap:10px;
     }
-
-    .rightHUD{
-      display:flex;
-      gap:10px;
-      align-items:center;
+    #bigLetter {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(255,255,255,0.16);
+      display:flex; align-items:center; justify-content:center;
+      font-size: 26px; font-weight: 900;
     }
-    .pill{
-      padding:10px 12px;
-      border-radius:16px;
-      background: var(--panel2);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-      font-weight:700;
-      display:flex;
-      gap:10px;
-      align-items:center;
+    #status {
+      font-size: 18px; font-weight: 800;
     }
-    .pill small{ opacity:0.85; font-weight:600; }
-
-    .btn{
-      border:none;
-      border-radius:16px;
-      padding:10px 12px;
-      font-weight:800;
-      cursor:pointer;
-      background: rgba(255,255,255,0.14);
+    #help {
+      position: fixed; left: 12px; right: 12px; bottom: 12px;
+      display:flex; justify-content: space-between; gap: 10px;
+      pointer-events: none;
+    }
+    .btn {
+      pointer-events: auto;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.14);
       color:#fff;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-      transition: transform 120ms ease, background 120ms ease;
+      padding: 14px 16px;
+      border-radius: 16px;
+      font-weight: 800;
+      min-width: 120px;
+      text-align:center;
       user-select:none;
+      touch-action: manipulation;
     }
-    .btn:active{ transform: translateY(1px) scale(0.99); }
-    .btn:hover{ background: rgba(255,255,255,0.18); }
-
-    .stage{
-      position:relative;
-      z-index:2;
-      height: calc(100% - 92px);
-      display:grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      gap:18px;
-      padding: 0 20px 20px;
-      align-items:stretch;
+    #overlay {
+      position: fixed; inset: 0;
+      display:flex; align-items:center; justify-content:center;
+      background: radial-gradient(ellipse at center, rgba(20,30,45,0.92), rgba(5,7,10,0.96));
+      color:#fff;
+      z-index: 10;
     }
-
-    .card{
-      border-radius:26px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(10px);
-      padding:18px;
-      position:relative;
-      overflow:hidden;
-    }
-
-    .planetGlow{
-      position:absolute;
-      width:520px;
-      height:520px;
-      border-radius:50%;
-      right:-220px;
-      top:-260px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), rgba(255,255,255,0.02) 45%, transparent 70%);
-      filter: blur(1px);
-      pointer-events:none;
-      opacity:0.9;
-    }
-
-    .missionLine{
-      font-size:20px;
-      font-weight:900;
-      letter-spacing:0.2px;
-      margin:0 0 10px;
-    }
-
-    .prompt{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      padding:12px 14px;
-      border-radius:20px;
+    #card {
+      width: min(720px, calc(100% - 24px));
       background: rgba(255,255,255,0.08);
-      box-shadow: var(--glow);
-      margin-bottom:14px;
-    }
-
-    .shapeBubble{
-      width:140px;
-      height:140px;
-      border-radius:28px;
-      display:grid;
-      place-items:center;
-      background: rgba(255,255,255,0.10);
-      box-shadow: 0 0 40px rgba(120,170,255,0.20);
-      position:relative;
-      overflow:hidden;
-      flex:0 0 auto;
-    }
-
-    .shapeSymbol{
-      font-size:88px;
-      line-height:1;
-      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.35));
-      animation: float 2.8s ease-in-out infinite;
-    }
-    @keyframes float{
-      0%{ transform: translateY(0px); }
-      50%{ transform: translateY(-14px); }
-      100%{ transform: translateY(0px); }
-    }
-
-    .instruction{
-      text-align:left;
-      flex:1;
-    }
-    .instruction .big{
-      font-size:18px;
-      font-weight:900;
-      margin:0 0 4px;
-    }
-    .instruction .small{
-      margin:0;
-      opacity:0.92;
-      font-size:14px;
-      line-height:1.35;
-    }
-
-    .answers{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:12px;
-      margin-top:12px;
-    }
-    .answerBtn{
-      border:none;
-      border-radius:20px;
-      padding:16px 14px;
-      font-size:20px;
-      font-weight:900;
-      cursor:pointer;
-      background: rgba(255,255,255,0.12);
-      color:#fff;
-      box-shadow: var(--shadow);
-      transition: transform 120ms ease, background 120ms ease;
-    }
-    .answerBtn:hover{ background: rgba(255,255,255,0.16); transform: translateY(-1px); }
-    .answerBtn:active{ transform: translateY(0px) scale(0.99); }
-
-    .side{
-      display:grid;
-      grid-template-rows: 1fr 0.7fr;
-      gap:18px;
-    }
-
-    .rocketArea{
-      position:relative;
-      height:100%;
-      border-radius:26px;
-      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-
-    .rocket{
-      position:absolute;
-      left:50%;
-      bottom:18px;
-      transform: translateX(-50%);
-      font-size:88px;
-      filter: drop-shadow(0 18px 22px rgba(0,0,0,0.35));
-      transition: bottom 900ms ease, transform 900ms ease;
-      z-index:2;
-    }
-
-    .thruster{
-      position:absolute;
-      left:50%;
-      bottom:4px;
-      transform: translateX(-50%);
-      font-size:40px;
-      opacity:0.0;
-      transition: opacity 200ms ease;
-      z-index:1;
-    }
-
-    .stickerLayer{
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      z-index:3;
-    }
-
-    .sticker{
-      position:absolute;
-      width:160px;
-      height:auto;
-      opacity:0.0;
-      transform: scale(0.9) rotate(-2deg);
-      transition: opacity 180ms ease, transform 220ms ease;
-      filter: drop-shadow(0 14px 18px rgba(0,0,0,0.35));
-    }
-    .sticker.show{
-      opacity:1.0;
-      transform: scale(1.0) rotate(0deg);
-    }
-
-    .coach{
-      margin:0;
-      font-size:16px;
-      line-height:1.45;
-      opacity:0.95;
-    }
-
-    .miniTips{
-      margin-top:10px;
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-    }
-    .chip{
-      padding:10px 12px;
-      border-radius:999px;
-      background: rgba(255,255,255,0.10);
-      font-weight:800;
-      font-size:14px;
-      box-shadow: var(--glow);
-      user-select:none;
-    }
-
-    .toast{
-      position:fixed;
-      left:50%;
-      bottom:22px;
-      transform: translateX(-50%);
-      z-index:5;
-      padding:14px 16px;
-      border-radius:18px;
-      background: rgba(10,12,24,0.65);
-      box-shadow: var(--shadow);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 18px;
+      padding: 18px;
       backdrop-filter: blur(10px);
-      font-weight:900;
-      opacity:0;
-      transition: opacity 180ms ease, transform 180ms ease;
-      pointer-events:none;
+      -webkit-backdrop-filter: blur(10px);
     }
-    .toast.show{
-      opacity:1;
-      transform: translateX(-50%) translateY(-6px);
+    #card h1 { margin: 0 0 8px 0; font-size: 22px; }
+    #card p { margin: 6px 0; opacity: 0.92; line-height: 1.35; }
+    #card .row { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    #card .row button {
+      background: rgba(255,255,255,0.16);
+      border: 1px solid rgba(255,255,255,0.16);
+      color:#fff;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-weight: 900;
+      cursor: pointer;
     }
-
-    .confetti{
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      z-index:4;
-    }
-
-    .muteHint{
-      font-size:12px;
-      opacity:0.85;
-      margin-left:6px;
-      font-weight:700;
-    }
-
-    @media (max-width: 980px){
-      .stage{ grid-template-columns: 1fr; height: auto; }
-      body{ overflow:auto; }
-    }
+    canvas { display:block; }
   </style>
 </head>
-
 <body>
-  <canvas id="stars"></canvas>
 
-  <div class="hud">
-    <div class="title">
-      <div class="badge">🚀 Ruimte Missie</div>
-      <div>
-        <div style="font-weight:900; font-size:16px;">Vormen reddingsactie</div>
-        <div class="subtitle">Bewegen, kijken, kiezen, juichen</div>
-      </div>
-    </div>
-
-    <div class="rightHUD">
-      <div class="pill">
-        <span>⭐</span>
-        <span id="score">0</span>
-        <small>punten</small>
-      </div>
-      <button class="btn" id="newBtn">Nieuwe vorm</button>
-      <button class="btn" id="soundBtn">🔊 geluid<span class="muteHint" id="soundHint"></span></button>
+<div id="overlay">
+  <div id="card">
+    <h1>Letter Race 3D</h1>
+    <p>Pak onderweg de juiste letter om turbo te krijgen.</p>
+    <p>Bediening: tik links of rechts om van rijstrook te wisselen.</p>
+    <p>Tip: begin met 3 letters, later voeg je er meer toe.</p>
+    <div class="row">
+      <button id="startBtn">Start</button>
+      <button id="lettersEasyBtn">Letters: M, A, S</button>
+      <button id="lettersAllBtn">Letters: A t m Z</button>
+      <button id="soundBtn">Geluid: aan</button>
     </div>
   </div>
+</div>
 
-  <div class="stage">
-    <div class="card">
-      <div class="planetGlow"></div>
-      <p class="missionLine">Mission control zegt</p>
-
-      <div class="prompt">
-        <div class="shapeBubble" aria-label="vorm">
-          <div class="shapeSymbol" id="shapeSymbol">⚪</div>
-        </div>
-        <div class="instruction">
-          <p class="big" id="instructionBig">Zoek dezelfde vorm in het lokaal</p>
-          <p class="small" id="instructionSmall">Ren, wijs, maak de vorm met je lichaam, kom terug en kies het juiste woord</p>
-        </div>
-      </div>
-
-      <div class="answers" id="answers"></div>
-
-      <p class="coach" id="coachText">
-        Tip, maak het extra fysiek: laat kinderen springen als astronaut, landen bij een voorwerp met die vorm, en daarna pas klikken.
-      </p>
-
-      <div class="miniTips">
-        <div class="chip">Astronaut sprong</div>
-        <div class="chip">Vorm met armen</div>
-        <div class="chip">Vind het in de klas</div>
-        <div class="chip">Samen checken</div>
-      </div>
-    </div>
-
-    <div class="side">
-      <div class="card rocketArea">
-        <div class="stickerLayer" id="stickerLayer">
-          <img class="sticker" id="stickerA" alt="sticker A" />
-          <img class="sticker" id="stickerB" alt="sticker B" />
-        </div>
-
-        <div class="confetti" id="confetti"></div>
-
-        <div class="rocket" id="rocket">🚀</div>
-        <div class="thruster" id="thruster">🔥</div>
-
-        <div style="position:absolute; left:14px; top:14px; z-index:2; font-weight:900; opacity:0.95;">
-          Raket status
-          <div style="font-size:13px; opacity:0.85; font-weight:700; margin-top:4px;" id="statusLine">
-            Klaar voor lancering
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <p class="missionLine" style="margin-bottom:10px;">Sticker instellingen</p>
-        <p class="coach" style="margin-bottom:10px;">
-          Plak hier je eigen Giphy sticker urls in de code, bij STICKERS_GOOD en STICKERS_OOPS.
-          Tip, kies transparante stickers, die lijken echt op een sticker op het scherm.
-        </p>
-        <p class="coach" style="opacity:0.85;">
-          Let op, sommige schoolnetwerken blokkeren externe gif bronnen, dan zie je wel het spel maar geen stickers.
-        </p>
-      </div>
-    </div>
+<div id="ui">
+  <div class="pill" id="targetLetter">
+    <div id="bigLetter">M</div>
+    <div>Doelletter</div>
   </div>
+  <div class="pill">
+    <div id="status">🙂</div>
+    <div id="score">Score: 0</div>
+  </div>
+</div>
 
-  <div class="toast" id="toast">Goed gedaan</div>
+<div id="help">
+  <div class="btn" id="leftBtn">Links</div>
+  <div class="btn" id="rightBtn">Rechts</div>
+</div>
 
-  <script>
-    // 1) VORMEN
-    const SHAPES = [
-      { name: "cirkel", symbol: "⚪" },
-      { name: "vierkant", symbol: "🟦" },
-      { name: "driehoek", symbol: "🔺" },
-      { name: "rechthoek", symbol: "▭" },
-      { name: "ovaal", symbol: "🥚" }
-    ];
+<script type="module">
+  import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-    // 2) STICKERS
-    // Plak hier Giphy media urls, bijvoorbeeld een mediaX.giphy.com link naar een gif of webp
-    // GIPHY levert directe media urls per item, zie hun schema, url velden in renditions 1
-    // Je kunt ook via giphy.com naar een sticker gaan en de embed optie gebruiken, maar img is hier het simpelst 2
+  let scene, camera, renderer;
+  let car, road, lights = [];
+  let lane = 0;
+  const lanes = [-2.2, 0, 2.2];
+  let speed = 0.16;
+  let baseSpeed = 0.16;
+  let turboTime = 0;
+  let slowTime = 0;
 
-    const STICKERS_GOOD = [
-      // Voorbeeld placeholders, vervang door jouw favoriete Giphy sticker urls
-      "https://media1.giphy.com/media/cZ7rmKfFYOvYI/200.gif",
-      "https://media1.giphy.com/media/cZ7rmKfFYOvYI/200_d.gif"
-    ];
+  let pickups = [];
+  let activeLetters = ["M","A","S"];
+  let target = "M";
+  let score = 0;
 
-    const STICKERS_OOPS = [
-      "https://media1.giphy.com/media/cZ7rmKfFYOvYI/100.gif",
-      "https://media1.giphy.com/media/cZ7rmKfFYOvYI/100w.gif"
-    ];
+  let running = false;
+  let lastSpawnZ = -10;
+  let rng = () => Math.random();
 
-    // 3) GAME STATE
-    let current = null;
-    let score = 0;
-    let soundOn = true;
+  const uiBig = document.getElementById("bigLetter");
+  const uiStatus = document.getElementById("status");
+  const uiScore = document.getElementById("score");
+  const overlay = document.getElementById("overlay");
 
-    // 4) ELEMENTS
-    const elScore = document.getElementById("score");
-    const elShapeSymbol = document.getElementById("shapeSymbol");
-    const elAnswers = document.getElementById("answers");
-    const elRocket = document.getElementById("rocket");
-    const elThruster = document.getElementById("thruster");
-    const elToast = document.getElementById("toast");
-    const elStatus = document.getElementById("statusLine");
-    const elStickerA = document.getElementById("stickerA");
-    const elStickerB = document.getElementById("stickerB");
-    const elSoundBtn = document.getElementById("soundBtn");
-    const elSoundHint = document.getElementById("soundHint");
+  let soundOn = true;
 
-    // 5) SOUND, simpele bliepjes via WebAudio, werkt zonder bestanden
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    let audioCtx = null;
+  function speak(text) {
+    try {
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "nl-NL";
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    } catch {}
+  }
 
-    function ensureAudio(){
-      if (!soundOn) return;
-      if (!AudioCtx) return;
-      if (!audioCtx) audioCtx = new AudioCtx();
-      if (audioCtx.state === "suspended") audioCtx.resume();
-    }
-
-    function beep({freq=440, dur=0.12, type="sine", gain=0.05} = {}){
-      if (!soundOn) return;
-      ensureAudio();
-      if (!audioCtx) return;
-
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.type = type;
-      o.frequency.value = freq;
-      g.gain.value = gain;
+  function beep(ok = true) {
+    if (!soundOn) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = ok ? 720 : 190;
+      g.gain.value = 0.08;
       o.connect(g);
-      g.connect(audioCtx.destination);
+      g.connect(ctx.destination);
       o.start();
+      setTimeout(() => { o.stop(); ctx.close(); }, ok ? 90 : 140);
+    } catch {}
+  }
 
-      setTimeout(() => { o.stop(); }, Math.max(30, dur * 1000));
-    }
+  function setTarget(newTarget) {
+    target = newTarget;
+    uiBig.textContent = target;
+    speak(`Pak de ${target}`);
+  }
 
-    function goodSound(){
-      beep({freq:523, dur:0.10, type:"triangle", gain:0.05});
-      setTimeout(()=>beep({freq:659, dur:0.10, type:"triangle", gain:0.05}), 90);
-      setTimeout(()=>beep({freq:784, dur:0.12, type:"triangle", gain:0.05}), 180);
-    }
+  function pickNewTarget() {
+    const next = activeLetters[Math.floor(rng() * activeLetters.length)];
+    setTarget(next);
+  }
 
-    function oopsSound(){
-      beep({freq:220, dur:0.12, type:"sine", gain:0.05});
-      setTimeout(()=>beep({freq:196, dur:0.14, type:"sine", gain:0.05}), 120);
-    }
-
-    // 6) HELPERS
-    function pick(arr){
-      return arr[Math.floor(Math.random() * arr.length)];
-    }
-
-    function shuffle(arr){
-      const a = [...arr];
-      for(let i=a.length-1; i>0; i--){
-        const j = Math.floor(Math.random() * (i+1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    }
-
-    function setToast(text){
-      elToast.textContent = text;
-      elToast.classList.add("show");
-      setTimeout(()=>elToast.classList.remove("show"), 900);
-    }
-
-    function showStickers(type){
-      const good = type === "good";
-      const list = good ? STICKERS_GOOD : STICKERS_OOPS;
-
-      const leftUrl = pick(list);
-      const rightUrl = pick(list);
-
-      elStickerA.src = leftUrl;
-      elStickerB.src = rightUrl;
-
-      elStickerA.style.left = "14px";
-      elStickerA.style.top = "18px";
-
-      elStickerB.style.right = "14px";
-      elStickerB.style.bottom = "18px";
-
-      elStickerA.classList.add("show");
-      elStickerB.classList.add("show");
-
-      setTimeout(()=>{
-        elStickerA.classList.remove("show");
-        elStickerB.classList.remove("show");
-      }, 950);
-    }
-
-    function confettiBurst(){
-      const host = document.getElementById("confetti");
-      host.innerHTML = "";
-      const n = 26;
-      for(let i=0;i<n;i++){
-        const s = document.createElement("div");
-        const size = 6 + Math.random()*10;
-        s.style.position = "absolute";
-        s.style.left = (45 + (Math.random()*10 - 5)) + "%";
-        s.style.top = (55 + (Math.random()*10 - 5)) + "%";
-        s.style.width = size + "px";
-        s.style.height = size + "px";
-        s.style.borderRadius = (Math.random() > 0.5) ? "999px" : "4px";
-        s.style.background = "rgba(255,255,255," + (0.55 + Math.random()*0.35) + ")";
-        s.style.opacity = "0.95";
-        s.style.transform = "translate(-50%,-50%)";
-        s.style.filter = "drop-shadow(0 10px 10px rgba(0,0,0,0.25))";
-        const dx = (Math.random()*520 - 260);
-        const dy = -(200 + Math.random()*260);
-        s.animate(
-          [
-            { transform:"translate(-50%,-50%) translate(0px,0px) rotate(0deg)", opacity:0.95 },
-            { transform:`translate(-50%,-50%) translate(${dx}px,${dy}px) rotate(${Math.random()*520}deg)`, opacity:0.0 }
-          ],
-          { duration: 900 + Math.random()*380, easing:"cubic-bezier(.2,.8,.2,1)" }
-        );
-        host.appendChild(s);
-      }
-      setTimeout(()=> host.innerHTML = "", 1400);
-    }
-
-    function rocketLaunch(){
-      elThruster.style.opacity = "1";
-      elRocket.style.bottom = "420px";
-      elRocket.style.transform = "translateX(-50%) rotate(-2deg)";
-      setTimeout(()=>{
-        elThruster.style.opacity = "0";
-        elRocket.style.bottom = "18px";
-        elRocket.style.transform = "translateX(-50%) rotate(0deg)";
-      }, 1050);
-    }
-
-    function buildAnswers(){
-      const options = shuffle(SHAPES).slice(0, 4);
-      if (!options.some(o => o.name === current.name)){
-        options[0] = current;
-      }
-      const final = shuffle(options);
-
-      elAnswers.innerHTML = "";
-      final.forEach(opt => {
-        const b = document.createElement("button");
-        b.className = "answerBtn";
-        b.textContent = opt.name;
-        b.onclick = () => check(opt.name);
-        elAnswers.appendChild(b);
-      });
-    }
-
-    function newRound(){
-      current = pick(SHAPES);
-      elShapeSymbol.textContent = current.symbol;
-      elStatus.textContent = "Vind de vorm, " + current.name;
-      buildAnswers();
-    }
-
-    function check(answer){
-      if (answer === current.name){
-        score += 1;
-        elScore.textContent = score;
-        elStatus.textContent = "Yes, juiste vorm";
-        setToast("Top, dat is " + current.name);
-        showStickers("good");
-        confettiBurst();
-        rocketLaunch();
-        goodSound();
-        setTimeout(newRound, 1100);
-      } else {
-        elStatus.textContent = "Bijna, probeer nog eens";
-        setToast("Oeps, kijk nog een keer");
-        showStickers("oops");
-        oopsSound();
-      }
-    }
-
-    // 7) SOUND TOGGLE
-    function renderSound(){
-      elSoundBtn.textContent = soundOn ? "🔊 geluid" : "🔇 geluid";
-      elSoundHint.textContent = soundOn ? "" : " tik om aan te zetten";
-    }
-    elSoundBtn.addEventListener("click", () => {
-      soundOn = !soundOn;
-      if (soundOn) ensureAudio();
-      renderSound();
-    });
-    renderSound();
-
-    // 8) BUTTONS
-    document.getElementById("newBtn").addEventListener("click", newRound);
-
-    // 9) STARS BACKGROUND
-    const canvas = document.getElementById("stars");
+  function makeTextSprite(letter) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext("2d");
-    let W, H;
-    let stars = [];
 
-    function resize(){
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-      stars = [];
-      const count = Math.floor((W*H)/18000);
-      for(let i=0;i<count;i++){
-        stars.push({
-          x: Math.random()*W,
-          y: Math.random()*H,
-          r: 0.4 + Math.random()*1.8,
-          a: 0.25 + Math.random()*0.75,
-          tw: 0.002 + Math.random()*0.006,
-          sp: 0.05 + Math.random()*0.22
-        });
-      }
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.fillRect(0,0,256,256);
+
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(18,18,220,220);
+
+    ctx.font = "900 150px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "white";
+    ctx.fillText(letter, 128, 132);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 8;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.1, 1.1, 1);
+    return sprite;
+  }
+
+  function createPickup(letter, laneIndex, z) {
+    const group = new THREE.Group();
+
+    const baseGeom = new THREE.BoxGeometry(1.0, 0.6, 1.0);
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x9aa6b2, roughness: 0.35, metalness: 0.25 });
+    const base = new THREE.Mesh(baseGeom, baseMat);
+    base.position.y = 0.35;
+    group.add(base);
+
+    const sprite = makeTextSprite(letter);
+    sprite.position.set(0, 0.85, 0.52);
+    group.add(sprite);
+
+    group.position.set(lanes[laneIndex], 0, z);
+    group.userData = { letter, laneIndex, hit: false };
+
+    scene.add(group);
+    pickups.push(group);
+  }
+
+  function spawnBatch() {
+    const z = lastSpawnZ - 14 - rng() * 10;
+    lastSpawnZ = z;
+
+    const laneIndex = Math.floor(rng() * 3);
+    const correctLane = laneIndex;
+
+    const correctLetter = target;
+    createPickup(correctLetter, correctLane, z);
+
+    const otherLetters = activeLetters.filter(l => l !== correctLetter);
+    for (let i = 0; i < 3; i++) {
+      if (i === correctLane) continue;
+      const l = otherLetters.length ? otherLetters[Math.floor(rng() * otherLetters.length)] : correctLetter;
+      createPickup(l, i, z);
+    }
+  }
+
+  function setupThree() {
+    scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0b0f14, 8, 60);
+
+    camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 6.2, 9.5);
+    camera.lookAt(0, 0.8, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x1b2430, 1.0);
+    scene.add(hemi);
+
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    dir.position.set(6, 10, 6);
+    scene.add(dir);
+
+    const roadGeom = new THREE.PlaneGeometry(9, 200);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x111a24, roughness: 0.95, metalness: 0.0 });
+    road = new THREE.Mesh(roadGeom, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.z = -70;
+    scene.add(road);
+
+    const lineGeom = new THREE.BoxGeometry(0.12, 0.02, 4);
+    const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.0 });
+
+    for (let i = 0; i < 20; i++) {
+      const a = new THREE.Mesh(lineGeom, lineMat);
+      a.position.set(-1.1, 0.02, -i * 10);
+      scene.add(a);
+      lights.push(a);
+
+      const b = new THREE.Mesh(lineGeom, lineMat);
+      b.position.set(1.1, 0.02, -i * 10);
+      scene.add(b);
+      lights.push(b);
     }
 
-    function draw(){
-      ctx.clearRect(0,0,W,H);
-      for(const s of stars){
-        s.x -= s.sp;
-        if (s.x < -10) s.x = W + 10;
-        s.a += (Math.random() > 0.5 ? s.tw : -s.tw);
-        s.a = Math.max(0.15, Math.min(0.95, s.a));
+    const carGroup = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.5, 2.0),
+      new THREE.MeshStandardMaterial({ color: 0x2fd0ff, roughness: 0.35, metalness: 0.2 })
+    );
+    body.position.y = 0.45;
+    carGroup.add(body);
 
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-        ctx.fillStyle = "rgba(255,255,255," + s.a + ")";
-        ctx.fill();
-      }
-      requestAnimationFrame(draw);
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.35, 0.9),
+      new THREE.MeshStandardMaterial({ color: 0x1e2a36, roughness: 0.6, metalness: 0.1 })
+    );
+    top.position.set(0, 0.75, -0.1);
+    carGroup.add(top);
+
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.95, metalness: 0.0 });
+    const wheelGeom = new THREE.CylinderGeometry(0.18, 0.18, 0.18, 18);
+    const offsets = [
+      [-0.55, 0.22, 0.65],
+      [ 0.55, 0.22, 0.65],
+      [-0.55, 0.22,-0.65],
+      [ 0.55, 0.22,-0.65]
+    ];
+    for (const [x,y,z] of offsets) {
+      const w = new THREE.Mesh(wheelGeom, wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(x,y,z);
+      carGroup.add(w);
     }
 
-    window.addEventListener("resize", resize);
+    car = carGroup;
+    car.position.set(lanes[lane], 0, 2.2);
+    scene.add(car);
 
-    // Start
-    resize();
-    draw();
-    newRound();
-  </script>
+    pickNewTarget();
+    for (let i = 0; i < 4; i++) spawnBatch();
+
+    window.addEventListener("resize", onResize);
+  }
+
+  function onResize() {
+    if (!renderer || !camera) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function setStatus(emoji) {
+    uiStatus.textContent = emoji;
+  }
+
+  function updateScore() {
+    uiScore.textContent = `Score: ${score}`;
+  }
+
+  function moveLane(dir) {
+    lane = Math.max(0, Math.min(2, lane + dir));
+  }
+
+  function checkCollisions() {
+    for (const p of pickups) {
+      if (p.userData.hit) continue;
+      const dz = Math.abs(p.position.z - car.position.z);
+      const dx = Math.abs(p.position.x - car.position.x);
+      if (dz < 1.0 && dx < 0.9) {
+        p.userData.hit = true;
+
+        const ok = p.userData.letter === target;
+        if (ok) {
+          score += 1;
+          turboTime = 70;
+          slowTime = 0;
+          setStatus("😄");
+          beep(true);
+          pickNewTarget();
+        } else {
+          slowTime = 60;
+          turboTime = 0;
+          setStatus("😬");
+          beep(false);
+        }
+        updateScore();
+
+        scene.remove(p);
+      }
+    }
+    pickups = pickups.filter(p => !p.userData.hit);
+  }
+
+  function tick() {
+    if (!running) return;
+
+    const laneX = lanes[lane];
+    car.position.x += (laneX - car.position.x) * 0.18;
+
+    if (turboTime > 0) {
+      turboTime -= 1;
+      speed = baseSpeed * 1.7;
+    } else if (slowTime > 0) {
+      slowTime -= 1;
+      speed = baseSpeed * 0.75;
+    } else {
+      speed = baseSpeed;
+      setStatus("🙂");
+    }
+
+    for (const l of lights) {
+      l.position.z += speed * 10;
+      if (l.position.z > 8) l.position.z = -200;
+    }
+
+    for (const p of pickups) {
+      p.position.z += speed * 10;
+      if (p.position.z > 8) {
+        scene.remove(p);
+        p.userData.hit = true;
+      }
+    }
+    pickups = pickups.filter(p => !p.userData.hit);
+
+    while (pickups.length < 10) spawnBatch();
+
+    checkCollisions();
+
+    camera.position.x += (car.position.x - camera.position.x) * 0.08;
+    camera.lookAt(car.position.x, 0.8, -8);
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  function bindControls() {
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+
+    const left = () => moveLane(-1);
+    const right = () => moveLane(1);
+
+    leftBtn.addEventListener("pointerdown", left);
+    rightBtn.addEventListener("pointerdown", right);
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") left();
+      if (e.key === "ArrowRight") right();
+    });
+
+    window.addEventListener("pointerdown", (e) => {
+      const x = e.clientX / window.innerWidth;
+      if (x < 0.33) left();
+      else if (x > 0.66) right();
+    });
+  }
+
+  function startGame() {
+    if (!scene) setupThree();
+    running = true;
+    overlay.style.display = "none";
+    tick();
+  }
+
+  document.getElementById("startBtn").addEventListener("click", startGame);
+
+  document.getElementById("lettersEasyBtn").addEventListener("click", () => {
+    activeLetters = ["M","A","S"];
+    setTarget(activeLetters[0]);
+  });
+
+  document.getElementById("lettersAllBtn").addEventListener("click", () => {
+    activeLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    setTarget("A");
+  });
+
+  document.getElementById("soundBtn").addEventListener("click", (e) => {
+    soundOn = !soundOn;
+    e.target.textContent = soundOn ? "Geluid: aan" : "Geluid: uit";
+  });
+
+  bindControls();
+</script>
 </body>
 </html>
