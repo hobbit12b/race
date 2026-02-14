@@ -43,8 +43,15 @@ resize();
 
 const uiEnergy = document.getElementById("energy");
 
-const carImg = new Image();
-carImg.src = "car_straight.png";
+function loadImg(src){
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const carStraightImg = loadImg("car_straight.png");
+const carLeftImg = loadImg("car_left.png");
+const carRightImg = loadImg("car_right.png");
 
 let energy = 100;
 let roadScroll = 0;
@@ -65,20 +72,45 @@ const car = {
   w: 140,
   h: 90,
   tilt: 0,
-  speed: 8
+  speed: 8,
+  steerDx: 0
+};
+
+CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+  const rr = Math.min(r, w/2, h/2);
+  this.beginPath();
+  this.moveTo(x + rr, y);
+  this.arcTo(x + w, y, x + w, y + h, rr);
+  this.arcTo(x + w, y + h, x, y + h, rr);
+  this.arcTo(x, y + h, x, y, rr);
+  this.arcTo(x, y, x + w, y, rr);
+  this.closePath();
+  return this;
 };
 
 function roadWidthAt(y){
-  const t = y / canvas.height;     // 0 top, 1 bottom
-  const minW = canvas.width * 0.22;
-  const maxW = canvas.width * 0.88;
-  return minW + (maxW - minW) * (t ** 1.7);
+  const t = y / canvas.height;
+  const minW = canvas.width * 0.28;
+  const maxW = canvas.width * 0.90;
+  return minW + (maxW - minW) * (t ** 1.65);
 }
 
+/*
+Rustige bocht, geen golfslag
+We gebruiken een trage sinus met lage amplitude
+Plus een mini second harmonic voor een natuurlijke curve, maar bijna onmerkbaar
+*/
 function roadCenterXAt(y){
-  // kleine slinger kan later, nu recht met lichte “ademhaling”
-  const sway = Math.sin((roadScroll / 180) + y / 260) * (canvas.width * 0.02);
-  return canvas.width / 2 + sway;
+  const t = y / canvas.height;
+
+  const base = canvas.width / 2;
+  const slow = Math.sin(roadScroll / 520) * (canvas.width * 0.045);
+  const slow2 = Math.sin(roadScroll / 900 + 1.7) * (canvas.width * 0.018);
+
+  // bovenin iets meer effect dan onderin, zodat het perspectief klopt
+  const influence = (1 - t) ** 1.2;
+
+  return base + (slow + slow2) * influence;
 }
 
 function roadEdgesAt(y){
@@ -87,163 +119,204 @@ function roadEdgesAt(y){
   return { left: cx - w/2, right: cx + w/2, cx, w };
 }
 
-function spawnItem(){
-  const ySpawn = -40;
-  const edges = roadEdgesAt(canvas.height * 0.3);
-  const margin = 70;
-  const x = edges.left + margin + Math.random() * (edges.w - margin * 2);
-
-  items.push({
-    x,
-    y: ySpawn,
-    letter: letters[Math.floor(Math.random() * letters.length)],
-    size: 44,
-    vy: 3.6
-  });
+// Maak een reeks punten zodat randen en polygon netjes krommen
+function sampleRoadPoints(stepY = 24){
+  const pts = [];
+  for(let y = 0; y <= canvas.height + stepY; y += stepY){
+    const e = roadEdgesAt(y);
+    pts.push({ y, left: e.left, right: e.right, cx: e.cx, w: e.w });
+  }
+  return pts;
 }
-
-setInterval(spawnItem, 1200);
-
-function setPointer(clientX){
-  state.pointerX = clientX;
-  state.pointerActive = true;
-}
-
-canvas.addEventListener("touchstart", e => setPointer(e.touches[0].clientX), {passive:true});
-canvas.addEventListener("touchmove", e => setPointer(e.touches[0].clientX), {passive:true});
-canvas.addEventListener("mousedown", e => setPointer(e.clientX));
-canvas.addEventListener("mousemove", e => { if(state.pointerActive) setPointer(e.clientX); });
-window.addEventListener("mouseup", () => state.pointerActive = false);
-window.addEventListener("touchend", () => state.pointerActive = false, {passive:true});
 
 function drawBackground(){
-  // lucht bovenin, iets donkerder onderin
   const g = ctx.createLinearGradient(0,0,0,canvas.height);
-  g.addColorStop(0, "#5aa7ff");
+  g.addColorStop(0, "#69b3ff");
   g.addColorStop(0.45, "#3b76c8");
   g.addColorStop(1, "#1a1a1a");
   ctx.fillStyle = g;
   ctx.fillRect(0,0,canvas.width,canvas.height);
-}
 
-function drawRoad(){
-  // gras links en rechts zichtbaar
+  // gras
   ctx.fillStyle = "#2c8c3a";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
-  // weg als perspectief polygon
+function fillRoadPolygon(pts){
   ctx.beginPath();
-  const topY = 0;
-  const botY = canvas.height;
-
-  const top = roadEdgesAt(topY + 40);
-  const bot = roadEdgesAt(botY);
-
-  ctx.moveTo(top.left, topY);
-  ctx.lineTo(top.right, topY);
-  ctx.lineTo(bot.right, botY);
-  ctx.lineTo(bot.left, botY);
+  ctx.moveTo(pts[0].left, pts[0].y);
+  for(let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].left, pts[i].y);
+  for(let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i].right, pts[i].y);
   ctx.closePath();
 
   ctx.fillStyle = "#4b4b4b";
   ctx.fill();
+}
 
-  // weg randen (witte lijnen)
+function strokeEdge(pts, side){
+  ctx.beginPath();
   ctx.lineWidth = 6;
   ctx.strokeStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath();
-  ctx.moveTo(top.left + 2, topY);
-  ctx.lineTo(bot.left + 10, botY);
-  ctx.stroke();
 
-  ctx.beginPath();
-  ctx.moveTo(top.right - 2, topY);
-  ctx.lineTo(bot.right - 10, botY);
-  ctx.stroke();
+  const x0 = side === "left" ? pts[0].left : pts[0].right;
+  ctx.moveTo(x0, pts[0].y);
 
-  // rumble strip, rood wit, net naast de witte rand
-  function drawRumble(side){
-    for(let i=0; i<18; i++){
-      const y1 = i * (canvas.height/18);
-      const y2 = y1 + (canvas.height/18) * 0.55;
-
-      const e1 = roadEdgesAt(y1);
-      const e2 = roadEdgesAt(y2);
-
-      const left1 = side === "left" ? e1.left + 14 : e1.right - 14;
-      const left2 = side === "left" ? e2.left + 18 : e2.right - 18;
-
-      const w1 = side === "left" ? 18 : -18;
-      const w2 = side === "left" ? 22 : -22;
-
-      ctx.beginPath();
-      ctx.moveTo(left1, y1);
-      ctx.lineTo(left1 + w1, y1);
-      ctx.lineTo(left2 + w2, y2);
-      ctx.lineTo(left2, y2);
-      ctx.closePath();
-
-      const isRed = (i + Math.floor(roadScroll/90)) % 2 === 0;
-      ctx.fillStyle = isRed ? "#d63b3b" : "#f2f2f2";
-      ctx.fill();
-    }
+  for(let i = 1; i < pts.length; i++){
+    const x = side === "left" ? pts[i].left : pts[i].right;
+    ctx.lineTo(x, pts[i].y);
   }
-  drawRumble("left");
-  drawRumble("right");
+  ctx.stroke();
+}
 
-  // midden streep, gebroken, in perspectief
-  for(let i=0; i<16; i++){
-    const y = (i * (canvas.height/16)) + (roadScroll % (canvas.height/16));
-    const e = roadEdgesAt(y);
-    const e2 = roadEdgesAt(y + 60);
+// Dynamische zijlijnen: dashes die naar beneden bewegen, met perspectief
+function drawEdgeDashes(pts, side){
+  const scroll = roadScroll % 140;
 
-    const cx1 = e.cx;
-    const cx2 = e2.cx;
+  for(let i = 0; i < pts.length - 1; i++){
+    const p = pts[i];
+    const t = p.y / canvas.height;
 
-    const w = 10 + (y / canvas.height) * 8;
-    const dashH = 70 + (y / canvas.height) * 25;
+    // dash ritme, boven kleiner, onder groter
+    const dashEvery = 90 + t * 40;
+    const dashLen = 36 + t * 32;
 
-    ctx.fillStyle = "rgba(255,240,160,0.95)";
+    // bepalen of dit segment “aan” staat
+    const phase = (p.y + scroll) % dashEvery;
+    const on = phase < dashLen;
+
+    if(!on) continue;
+
+    const x = side === "left" ? p.left : p.right;
+
+    // kleine inset zodat dash net op het asfalt ligt
+    const inset = side === "left" ? 10 : -10;
+
+    ctx.lineWidth = 5 + t * 4;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
     ctx.beginPath();
-    ctx.moveTo(cx1 - w/2, y);
-    ctx.lineTo(cx1 + w/2, y);
-    ctx.lineTo(cx2 + w/2, y + dashH);
-    ctx.lineTo(cx2 - w/2, y + dashH);
+    ctx.moveTo(x + inset, p.y);
+    ctx.lineTo(x + inset, p.y + 18 + t * 20);
+    ctx.stroke();
+  }
+}
+
+// Middenstreep dynamisch, volgt de bocht via cx
+function drawCenterDashes(pts){
+  const scroll = roadScroll % 170;
+
+  for(let i = 0; i < pts.length - 1; i++){
+    const p = pts[i];
+    const t = p.y / canvas.height;
+
+    const every = 120 + t * 55;
+    const len = 52 + t * 40;
+
+    const phase = (p.y + scroll) % every;
+    if(phase > len) continue;
+
+    const w = 10 + t * 10;
+
+    ctx.strokeStyle = "rgba(255,240,160,0.95)";
+    ctx.lineWidth = w;
+
+    ctx.beginPath();
+    ctx.moveTo(p.cx, p.y);
+    ctx.lineTo(p.cx, p.y + 28 + t * 34);
+    ctx.stroke();
+  }
+}
+
+// Rumble strips, rood wit segmenten, volgen de curve
+function drawRumble(pts, side){
+  const scroll = roadScroll % 160;
+
+  for(let i = 0; i < pts.length - 1; i++){
+    const p = pts[i];
+    const t = p.y / canvas.height;
+
+    const every = 80 + t * 35;
+    const len = 34 + t * 28;
+
+    const phase = (p.y + scroll) % every;
+    const on = phase < len;
+    if(!on) continue;
+
+    const baseX = side === "left" ? p.left : p.right;
+
+    const stripWidth = 14 + t * 10;
+    const stripInset = 18 + t * 10;
+    const dir = side === "left" ? 1 : -1;
+
+    const isRed = ((Math.floor((p.y + roadScroll) / every)) % 2) === 0;
+    ctx.fillStyle = isRed ? "#d63b3b" : "#f2f2f2";
+
+    ctx.beginPath();
+    ctx.moveTo(baseX + dir * stripInset, p.y);
+    ctx.lineTo(baseX + dir * (stripInset + stripWidth), p.y);
+    ctx.lineTo(baseX + dir * (stripInset + stripWidth + 2), p.y + 18 + t * 18);
+    ctx.lineTo(baseX + dir * (stripInset + 2), p.y + 18 + t * 18);
     ctx.closePath();
     ctx.fill();
   }
+}
 
-  // schaduw vignette voor “diepte”
-  const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.7, canvas.width*0.2, canvas.width/2, canvas.height*0.7, canvas.width*0.9);
+function drawRoad(){
+  const pts = sampleRoadPoints(26);
+
+  fillRoadPolygon(pts);
+
+  // Eerst de vaste rand, maar niet statisch: we leggen er bewegende dashes overheen
+  strokeEdge(pts, "left");
+  strokeEdge(pts, "right");
+
+  drawRumble(pts, "left");
+  drawRumble(pts, "right");
+
+  drawEdgeDashes(pts, "left");
+  drawEdgeDashes(pts, "right");
+
+  drawCenterDashes(pts);
+
+  // vignette voor diepte
+  const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.72, canvas.width*0.2, canvas.width/2, canvas.height*0.72, canvas.width*0.95);
   v.addColorStop(0, "rgba(0,0,0,0)");
   v.addColorStop(1, "rgba(0,0,0,0.35)");
   ctx.fillStyle = v;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
+function chooseCarSprite(){
+  // steerDx is verschil target minus current, geeft stuurintentie
+  if(car.steerDx < -18) return carLeftImg;
+  if(car.steerDx > 18) return carRightImg;
+  return carStraightImg;
+}
+
 function drawCar(){
-  // schaal naar scherm
   const base = Math.min(canvas.width, canvas.height);
-  const carW = Math.max(110, base * 0.18);
+  const carW = Math.max(120, base * 0.19);
   const carH = carW * 0.62;
 
   car.w = carW;
   car.h = carH;
 
+  const img = chooseCarSprite();
+
   ctx.save();
   ctx.translate(car.x, car.y);
-  ctx.rotate(car.tilt);
 
-  // zachte schaduw onder auto
+  // mini tilt, heel subtiel, zodat het natuurgetrouw blijft
+  ctx.rotate(car.tilt * 0.55);
+
+  // schaduw
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
   ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
   ctx.fill();
 
-  if(carImg.complete && carImg.naturalWidth){
-    ctx.drawImage(carImg, -carW/2, -carH/2, carW, carH);
+  if(img.complete && img.naturalWidth){
+    ctx.drawImage(img, -carW/2, -carH/2, carW, carH);
   } else {
-    // fallback als afbeelding nog laadt
     ctx.fillStyle = "red";
     ctx.fillRect(-carW/2, -carH/2, carW, carH);
   }
@@ -253,12 +326,10 @@ function drawCar(){
 
 function drawItems(){
   items.forEach(item => {
-    // letter tegeltje met beetje perspectief mee
     const scale = 0.85 + (item.y / canvas.height) * 0.55;
     const size = item.size * scale;
 
     ctx.fillStyle = "rgba(255,215,80,0.95)";
-    ctx.beginPath();
     ctx.roundRect(item.x - size/2, item.y - size/2, size, size, 10);
     ctx.fill();
 
@@ -274,69 +345,76 @@ function drawItems(){
   });
 }
 
-CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-  const rr = Math.min(r, w/2, h/2);
-  this.beginPath();
-  this.moveTo(x + rr, y);
-  this.arcTo(x + w, y, x + w, y + h, rr);
-  this.arcTo(x + w, y + h, x, y + h, rr);
-  this.arcTo(x, y + h, x, y, rr);
-  this.arcTo(x, y, x + w, y, rr);
-  this.closePath();
-  return this;
-};
+function setPointer(clientX){
+  state.pointerX = clientX;
+  state.pointerActive = true;
+}
+
+canvas.addEventListener("touchstart", e => setPointer(e.touches[0].clientX), {passive:true});
+canvas.addEventListener("touchmove", e => setPointer(e.touches[0].clientX), {passive:true});
+canvas.addEventListener("mousedown", e => setPointer(e.clientX));
+canvas.addEventListener("mousemove", e => { if(state.pointerActive) setPointer(e.clientX); });
+window.addEventListener("mouseup", () => state.pointerActive = false);
+window.addEventListener("touchend", () => state.pointerActive = false, {passive:true});
 
 function clampToRoad(x, y){
   const e = roadEdgesAt(y);
-  const pad = car.w * 0.32;
+  const pad = car.w * 0.34;
   return Math.min(e.right - pad, Math.max(e.left + pad, x));
 }
 
+function spawnItem(){
+  const ySpawn = -40;
+  const e = roadEdgesAt(canvas.height * 0.32);
+  const margin = 90;
+  const x = e.left + margin + Math.random() * (e.w - margin * 2);
+
+  items.push({
+    x,
+    y: ySpawn,
+    letter: letters[Math.floor(Math.random() * letters.length)],
+    size: 44,
+    vy: 3.7
+  });
+}
+setInterval(spawnItem, 1200);
+
 function update(dt){
-  // energie en scroll
   energy -= 0.025 * dt;
   energy = Math.max(0, Math.min(140, energy));
   uiEnergy.textContent = Math.floor(energy);
 
   roadScroll += car.speed * dt;
 
-  // doel x is pointer, maar altijd binnen de weg
   car.targetX = clampToRoad(state.pointerX, car.y);
 
-  // smooth steering
   const dx = car.targetX - car.x;
-  car.x += dx * (0.08 * dt);
+  car.steerDx = dx;
 
-  // natuurlijke tilt op basis van stuurbeweging
-  const desiredTilt = Math.max(-0.35, Math.min(0.35, dx / (canvas.width * 0.6)));
-  car.tilt += (desiredTilt - car.tilt) * (0.1 * dt);
+  // smoother, minder “schok”
+  car.x += dx * (0.075 * dt);
 
-  // items bewegen en collision
+  // minimale tilt, echt subtiel
+  const desiredTilt = Math.max(-0.22, Math.min(0.22, dx / (canvas.width * 0.9)));
+  car.tilt += (desiredTilt - car.tilt) * (0.08 * dt);
+
   for(let i = items.length - 1; i >= 0; i--){
     const it = items[i];
-    it.y += it.vy * (dt * 1.0);
+    it.y += it.vy * dt;
 
-    // binnen weg houden (zodat het eerlijk blijft)
     const e = roadEdgesAt(it.y);
-    const margin = 60;
+    const margin = 80;
     it.x = Math.min(e.right - margin, Math.max(e.left + margin, it.x));
 
-    // collision met auto
     const carW = car.w * 0.75;
     const carH = car.h * 0.75;
 
-    if(
-      Math.abs(it.x - car.x) < (carW/2) &&
-      Math.abs(it.y - car.y) < (carH/2)
-    ){
+    if(Math.abs(it.x - car.x) < (carW/2) && Math.abs(it.y - car.y) < (carH/2)){
       energy = Math.min(140, energy + 12);
       items.splice(i, 1);
       continue;
     }
-
-    if(it.y > canvas.height + 120){
-      items.splice(i, 1);
-    }
+    if(it.y > canvas.height + 140) items.splice(i, 1);
   }
 }
 
@@ -364,19 +442,15 @@ function loop(now){
   const dtMs = now - state.lastTime;
   state.lastTime = now;
 
-  // dt in “frames” van 60 fps, zodat gedrag stabiel blijft
   const dt = Math.min(3, dtMs / (1000/60));
 
-  if(energy > 0){
-    update(dt);
-  }
-
+  if(energy > 0) update(dt);
   draw();
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-// opnieuw starten bij leeg
 function restart(){
   if(energy > 0) return;
   energy = 100;
@@ -384,7 +458,6 @@ function restart(){
 }
 canvas.addEventListener("touchstart", restart, {passive:true});
 canvas.addEventListener("mousedown", restart);
-
 </script>
 </body>
 </html>
