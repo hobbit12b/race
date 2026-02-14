@@ -78,6 +78,18 @@
       font-weight: 900;
       cursor: pointer;
     }
+    #err {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,80,80,0.12);
+      border: 1px solid rgba(255,80,80,0.18);
+      color: rgba(255,255,255,0.92);
+      display: none;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.25;
+    }
     canvas { display:block; }
   </style>
 </head>
@@ -93,6 +105,7 @@
       <button id="tempoBtn">Tempo: extra rustig</button>
       <button id="soundBtn">Geluid: aan</button>
     </div>
+    <div id="err"></div>
   </div>
 </div>
 
@@ -115,28 +128,30 @@
 <script type="module">
   import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
+  const errBox = document.getElementById("err");
+  window.addEventListener("error", (e) => {
+    errBox.style.display = "block";
+    errBox.textContent = "Er ging iets mis:\n" + (e?.message || e);
+  });
+
   let scene, camera, renderer;
 
-  // Auto
   let car;
   let lane = 1;
   const laneOffsets = [-2.2, 0, 2.2];
   const carZ = 2.2;
 
-  // Tempo
   let baseSpeed = 0.028;
   let speed = baseSpeed;
   let turboTime = 0;
   let slowTime = 0;
 
-  // Letters
   const activeLetters = ["b","g","v","m","z","h","k","l","s","w"];
   let target = "b";
   let score = 0;
   let pickups = [];
   let lastSpawnZ = -22;
 
-  // Weg als glad lint
   let roadMesh = null;
   let roadGeom = null;
   let roadTexture = null;
@@ -144,20 +159,18 @@
   const ROAD = {
     width: 12.0,
     length: 260.0,
-    segZ: 220,          // hoe hoger, hoe gladder bocht
-    curveAmp: 2.4,      // bocht sterkte
-    curvePeriod: 170.0, // bocht lengte, hoger is rustiger
+    segZ: 220,
+    curveAmp: 2.4,
+    curvePeriod: 170.0,
     phase: 0.0
   };
 
-  // UI
   const uiBig = document.getElementById("bigLetter");
   const uiStatus = document.getElementById("status");
   const uiScore = document.getElementById("score");
   const overlay = document.getElementById("overlay");
   let running = false;
 
-  // Geluid, fonemisch via Web Audio
   let soundOn = true;
   let audioCtx = null;
 
@@ -323,7 +336,6 @@
     setTarget(activeLetters[Math.floor(rng() * activeLetters.length)]);
   }
 
-  // Gladde bochtfunctie
   function trackOffsetX(z) {
     return ROAD.curveAmp * Math.sin(((z + ROAD.phase) / ROAD.curvePeriod) * Math.PI * 2);
   }
@@ -332,7 +344,6 @@
     return trackOffsetX(z) + laneOffsets[laneIndex];
   }
 
-  // Weg texture met streepjes
   function buildRoadTexture() {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -342,19 +353,14 @@
     ctx.fillStyle = "#111a24";
     ctx.fillRect(0, 0, c.width, c.height);
 
-    // zijranden
     ctx.fillStyle = "rgba(255,255,255,0.25)";
     ctx.fillRect(40, 0, 6, c.height);
     ctx.fillRect(c.width - 46, 0, 6, c.height);
 
-    // midden streep, dashed
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     const mid = Math.floor(c.width / 2);
-    for (let y = 0; y < c.height; y += 120) {
-      ctx.fillRect(mid - 4, y + 20, 8, 60);
-    }
+    for (let y = 0; y < c.height; y += 120) ctx.fillRect(mid - 4, y + 20, 8, 60);
 
-    // rijstrook lijnen (tussenstroken)
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     const leftLane = Math.floor(c.width * 0.36);
     const rightLane = Math.floor(c.width * 0.64);
@@ -372,47 +378,6 @@
     return tex;
   }
 
-  function buildRoadMesh() {
-    roadTexture = buildRoadTexture();
-
-    roadGeom = new THREE.PlaneGeometry(ROAD.width, ROAD.length, 1, ROAD.segZ);
-    roadGeom.rotateX(-Math.PI / 2);
-
-    const mat = new THREE.MeshStandardMaterial({
-      map: roadTexture,
-      roughness: 0.95,
-      metalness: 0.0
-    });
-
-    roadMesh = new THREE.Mesh(roadGeom, mat);
-    roadMesh.position.set(0, 0, -ROAD.length * 0.55);
-    scene.add(roadMesh);
-
-    // eerste buiging
-    bendRoad();
-  }
-
-  function bendRoad() {
-    const pos = roadGeom.attributes.position;
-    const arr = pos.array;
-
-    // geometry is al geroteerd naar XZ plane, dus vertices: x, y, z met y meestal 0
-    // we buigen door x te verschuiven o.b.v. wereld z
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-      const x0 = roadGeom.userData.baseX[i];
-      const zLocal = roadGeom.userData.baseZ[i];
-      const zWorld = zLocal + roadMesh.position.z;
-
-      const off = trackOffsetX(zWorld);
-      arr[ix + 0] = x0 + off;
-      // y blijft gelijk
-    }
-
-    pos.needsUpdate = true;
-    roadGeom.computeVertexNormals();
-  }
-
   function cacheRoadBase() {
     const pos = roadGeom.attributes.position;
     const baseX = new Float32Array(pos.count);
@@ -428,7 +393,46 @@
     roadGeom.userData.baseZ = baseZ;
   }
 
-  // Letters
+  function bendRoad() {
+    const pos = roadGeom.attributes.position;
+    const arr = pos.array;
+
+    const baseX = roadGeom.userData.baseX;
+    const baseZ = roadGeom.userData.baseZ;
+
+    for (let i = 0; i < pos.count; i++) {
+      const ix = i * 3;
+      const zLocal = baseZ[i];
+      const zWorld = zLocal + roadMesh.position.z;
+      const off = trackOffsetX(zWorld);
+      arr[ix + 0] = baseX[i] + off;
+    }
+
+    pos.needsUpdate = true;
+    roadGeom.computeVertexNormals();
+  }
+
+  function buildRoadMesh() {
+    roadTexture = buildRoadTexture();
+
+    roadGeom = new THREE.PlaneGeometry(ROAD.width, ROAD.length, 1, ROAD.segZ);
+    roadGeom.rotateX(-Math.PI / 2);
+
+    cacheRoadBase();
+
+    const mat = new THREE.MeshStandardMaterial({
+      map: roadTexture,
+      roughness: 0.95,
+      metalness: 0.0
+    });
+
+    roadMesh = new THREE.Mesh(roadGeom, mat);
+    roadMesh.position.set(0, 0, -ROAD.length * 0.55);
+    scene.add(roadMesh);
+
+    bendRoad();
+  }
+
   function makeTextSprite(letter) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
@@ -491,7 +495,6 @@
     }
   }
 
-  // Auto textures
   function setCarTexture(key) {
     if (!car || !car.userData || !car.userData.plane) return;
     const t = car.userData.tex[key];
@@ -509,7 +512,6 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     document.body.appendChild(renderer.domElement);
 
-    // Orthographic camera, rustig en leesbaar
     const aspect = window.innerWidth / window.innerHeight;
     const viewSize = 10.8;
     camera = new THREE.OrthographicCamera(
@@ -527,11 +529,8 @@
     dir.position.set(6, 12, 6);
     scene.add(dir);
 
-    // Weg als glad lint
     buildRoadMesh();
-    cacheRoadBase();
 
-    // Auto als plaatje
     const texLoader = new THREE.TextureLoader();
     const carTex = {
       straight: texLoader.load("./car_straight.png"),
@@ -595,7 +594,6 @@
     lane = Math.max(0, Math.min(2, lane + dir));
     if (lane === prev) return;
 
-    // langer gedraaid bij wissel
     const key = dir < 0 ? "left" : "right";
     setCarTexture(key);
     car.userData.blinkFrames = 28;
@@ -640,7 +638,6 @@
   function tick() {
     if (!running) return;
 
-    // snelheid
     let targetSpeed = baseSpeed;
     if (turboTime > 0) {
       turboTime -= 1;
@@ -655,24 +652,19 @@
 
     const forward = speed * 10;
 
-    // bochten door laten lopen
     ROAD.phase += forward;
 
-    // weg buigen, texture scrollen
     if (roadTexture) roadTexture.offset.y = (roadTexture.offset.y + forward * 0.006) % 1;
-    bendRoad();
+    if (roadGeom && roadMesh) bendRoad();
 
-    // auto naar rijstrook
     const desiredX = laneXAtZ(lane, carZ);
     car.position.x += (desiredX - car.position.x) * 0.11;
 
-    // auto gedraaid langer vasthouden
     if (car.userData.blinkFrames > 0) {
       car.userData.blinkFrames -= 1;
       if (car.userData.blinkFrames === 0) setCarTexture("straight");
     }
 
-    // wiebel
     if (car.userData.wobbleFrames > 0) {
       car.userData.wobbleFrames -= 1;
       const t = car.userData.wobbleFrames / 34;
@@ -684,12 +676,9 @@
       car.rotation.y += (0 - car.rotation.y) * 0.18;
     }
 
-    // pickups bewegen en volgen bocht
     for (const p of pickups) {
       p.position.z += forward;
-
-      const z = p.position.z;
-      p.position.x = laneXAtZ(p.userData.laneIndex, z);
+      p.position.x = laneXAtZ(p.userData.laneIndex, p.position.z);
 
       if (p.position.z > 10) {
         scene.remove(p);
@@ -702,7 +691,6 @@
 
     checkCollisions();
 
-    // camera volgt zacht
     camera.position.x += (car.position.x - camera.position.x) * 0.06;
     camera.lookAt(camera.position.x, 0.8, -18);
 
@@ -719,11 +707,6 @@
 
     leftBtn.addEventListener("pointerdown", () => { ensureAudio(); left(); });
     rightBtn.addEventListener("pointerdown", () => { ensureAudio(); right(); });
-
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft") { ensureAudio(); left(); }
-      if (e.key === "ArrowRight") { ensureAudio(); right(); }
-    });
 
     window.addEventListener("pointerdown", (e) => {
       ensureAudio();
