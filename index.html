@@ -95,6 +95,10 @@ function mod(n, m){
   return ((n % m) + m) % m;
 }
 
+function clamp(v, a, b){
+  return Math.max(a, Math.min(b, v));
+}
+
 let energy = 100;
 let roadScroll = 0;
 let score = 0;
@@ -118,38 +122,35 @@ const car = {
   steerDx: 0
 };
 
-// Letter items op de weg
 const items = [];
 
-// Opdrachtletter
+/* opdrachtletter */
 let targetLetter = letters[Math.floor(Math.random() * letters.length)];
 uiTarget.textContent = targetLetter;
 
-// hoe vaak de opdrachtletter wisselt
 let targetTimer = 0;
 const TARGET_SWITCH_SECONDS = 8;
 
-// zachte feedback zonder flitsen
 let feedback = { text: "", t: 0 };
-
 function setFeedback(text){
   feedback.text = text;
-  feedback.t = 60; // frames
+  feedback.t = 60;
 }
 
 /* weg logica, rustig, bijna recht */
 function roadWidthAt(y){
-  const t = y / canvas.height;
+  const tRaw = y / canvas.height;
+  const t = clamp(tRaw, 0, 1);   // belangrijk, voorkomt NaN bij negatieve y
   const minW = canvas.width * 0.30;
   const maxW = canvas.width * 0.90;
   return minW + (maxW - minW) * (t ** 1.6);
 }
 
 function roadCenterXAt(y){
-  const t = y / canvas.height;
-  const base = canvas.width / 2;
+  const tRaw = y / canvas.height;
+  const t = clamp(tRaw, 0, 1);   // belangrijk, voorkomt NaN bij negatieve y
 
-  // rustiger dan eerder, nauwelijks bocht
+  const base = canvas.width / 2;
   const slow = Math.sin(roadScroll / 680) * (canvas.width * 0.035);
   const influence = (1 - t) ** 1.15;
 
@@ -179,11 +180,9 @@ function drawBackground(){
   ctx.fillStyle = g;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // rustige berm, cartoon
   ctx.fillStyle = "#3aa64b";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // zachte “vlekken” in het gras, heel subtiel
   const blobCount = 10;
   for(let i=0; i<blobCount; i++){
     const x = (i * canvas.width / blobCount) + (Math.sin((roadScroll/220) + i) * 18);
@@ -206,54 +205,79 @@ function fillRoadPolygon(pts){
   ctx.fill();
 }
 
-// Cartoon rand, geen drukke strepen
-function drawSoftRoadEdges(pts){
-  // schaduw rand binnenin de weg
+/* nieuwe rand styling: dunne lijn plus dikkere band met perspectief */
+function drawPerspectiveBand(pts, side){
+  // band net buiten de weg, rustig van kleur
+  // boven dun, onder dik
   for(let i = 0; i < pts.length - 1; i++){
-    const p = pts[i];
-    const t = p.y / canvas.height;
+    const p1 = pts[i];
+    const p2 = pts[i+1];
 
-    const left = p.left + 8;
-    const right = p.right - 8;
-    const h = 18 + t * 22;
+    const t = clamp(p1.y / canvas.height, 0, 1);
+    const bandW = 2 + t * 10;  // perspectief dikte
 
-    ctx.strokeStyle = "rgba(0,0,0,0.12)";
-    ctx.lineWidth = 10 + t * 8;
+    const dir = side === "left" ? -1 : 1;
 
-    // links
+    // iets buiten de weg leggen
+    const x1 = (side === "left" ? p1.left : p1.right) + dir * (bandW * 0.7);
+    const x2 = (side === "left" ? p2.left : p2.right) + dir * (bandW * 0.7);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = bandW;
+    ctx.lineCap = "round";
+
     ctx.beginPath();
-    ctx.moveTo(left, p.y);
-    ctx.lineTo(left, p.y + h);
-    ctx.stroke();
-
-    // rechts
-    ctx.beginPath();
-    ctx.moveTo(right, p.y);
-    ctx.lineTo(right, p.y + h);
+    ctx.moveTo(x1, p1.y);
+    ctx.lineTo(x2, p2.y);
     ctx.stroke();
   }
+}
 
-  // zachte witte rand, heel rustig, niet knipperend
+function drawThinEdgeLine(pts, side){
+  // dunne witte lijn op de asfalt rand, blijft rustig
   ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(pts[0].left + 4, pts[0].y);
-  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left + 4, pts[i].y);
-  ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
 
   ctx.beginPath();
-  ctx.moveTo(pts[0].right - 4, pts[0].y);
-  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 4, pts[i].y);
+  const x0 = side === "left" ? pts[0].left + 3 : pts[0].right - 3;
+  ctx.moveTo(x0, pts[0].y);
+
+  for(let i=1; i<pts.length; i++){
+    const x = side === "left" ? pts[i].left + 3 : pts[i].right - 3;
+    ctx.lineTo(x, pts[i].y);
+  }
   ctx.stroke();
 }
 
-// rustige middenlijn, grote dashes, weinig frequent
+function drawInnerShadow(pts, side){
+  // zachte schaduw op de binnenrand van de weg, geeft diepte zonder strepen
+  for(let i = 0; i < pts.length - 1; i++){
+    const p = pts[i];
+    const t = clamp(p.y / canvas.height, 0, 1);
+
+    const h = 18 + t * 22;
+    const inset = 9 + t * 7;
+
+    const x = side === "left" ? p.left + inset : p.right - inset;
+
+    ctx.strokeStyle = "rgba(0,0,0,0.12)";
+    ctx.lineWidth = 10 + t * 8;
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(x, p.y);
+    ctx.lineTo(x, p.y + h);
+    ctx.stroke();
+  }
+}
+
 function drawCenterDashes(pts){
   const scroll = roadScroll % 240;
 
   for(let i = 0; i < pts.length - 1; i++){
     const p = pts[i];
-    const t = p.y / canvas.height;
+    const t = clamp(p.y / canvas.height, 0, 1);
 
     const every = 210 + t * 80;
     const len = 70 + t * 55;
@@ -263,6 +287,7 @@ function drawCenterDashes(pts){
 
     ctx.strokeStyle = "rgba(255,245,190,0.65)";
     ctx.lineWidth = 10 + t * 8;
+    ctx.lineCap = "round";
 
     ctx.beginPath();
     ctx.moveTo(p.cx, p.y);
@@ -275,10 +300,21 @@ function drawRoad(){
   const pts = sampleRoadPoints(26);
 
   fillRoadPolygon(pts);
-  drawSoftRoadEdges(pts);
+
+  // binnen schaduw
+  drawInnerShadow(pts, "left");
+  drawInnerShadow(pts, "right");
+
+  // extra band buiten de weg, perspectief dikte
+  drawPerspectiveBand(pts, "left");
+  drawPerspectiveBand(pts, "right");
+
+  // dunne witte lijn op de rand
+  drawThinEdgeLine(pts, "left");
+  drawThinEdgeLine(pts, "right");
+
   drawCenterDashes(pts);
 
-  // vignette
   const v = ctx.createRadialGradient(canvas.width/2, canvas.height*0.72, canvas.width*0.2, canvas.width/2, canvas.height*0.72, canvas.width*0.95);
   v.addColorStop(0, "rgba(0,0,0,0)");
   v.addColorStop(1, "rgba(0,0,0,0.30)");
@@ -294,7 +330,7 @@ function chooseCarSprite(){
 
 function drawCar(){
   const base = Math.min(canvas.width, canvas.height);
-  const carW = Math.max(144, base * 0.228); // 20% groter
+  const carW = Math.max(144, base * 0.228);
   const carH = carW * 0.62;
 
   car.w = carW;
@@ -306,7 +342,6 @@ function drawCar(){
   ctx.translate(car.x, car.y);
   ctx.rotate(car.tilt * 0.45);
 
-  // schaduw
   ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
   ctx.ellipse(0, carH*0.36, carW*0.34, carH*0.22, 0, 0, Math.PI*2);
@@ -323,12 +358,11 @@ function drawCar(){
 }
 
 function drawItemTile(x, y, letter, isTarget){
-  const scale = 0.88 + (y / canvas.height) * 0.55;
+  const scale = 0.88 + (clamp(y, 0, canvas.height) / canvas.height) * 0.55;
   const size = 46 * scale;
 
-  // target tegel net iets anders, maar rustig
-  const fill = isTarget ? "rgba(170,225,255,0.88)" : "rgba(255,220,120,0.90)";
-  const stroke = isTarget ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.18)";
+  const fill = isTarget ? "rgba(170,225,255,0.90)" : "rgba(255,220,120,0.92)";
+  const stroke = isTarget ? "rgba(255,255,255,0.60)" : "rgba(0,0,0,0.20)";
 
   ctx.fillStyle = fill;
   ctx.roundRect(x - size/2, y - size/2, size, size, 12);
@@ -338,7 +372,7 @@ function drawItemTile(x, y, letter, isTarget){
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(10,10,10,0.9)";
+  ctx.fillStyle = "rgba(10,10,10,0.92)";
   ctx.font = `700 ${Math.floor(26*scale)}px Arial`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -346,9 +380,9 @@ function drawItemTile(x, y, letter, isTarget){
 }
 
 function drawItems(){
-  items.forEach(it => {
+  for(const it of items){
     drawItemTile(it.x, it.y, it.letter, it.isTarget);
-  });
+  }
 }
 
 function setPointer(clientX){
@@ -381,21 +415,17 @@ function spawnLetter(isTarget){
     y: ySpawn,
     letter: isTarget ? targetLetter : letters[Math.floor(Math.random() * letters.length)],
     isTarget,
-    size: 46,
     vy: 3.5
   });
 }
 
-// spawn logica
 let spawnTimer = 0;
 function maybeSpawn(dt){
   spawnTimer += dt;
 
-  // gemiddeld om de 1.1 sec een letter
   if(spawnTimer > 66){
     spawnTimer = 0;
 
-    // af en toe een opdrachtletter, ongeveer 1 op 4
     const wantTarget = Math.random() < 0.25;
     spawnLetter(wantTarget);
   }
@@ -407,7 +437,6 @@ function updateTargetLetter(dt){
   if(targetTimer >= TARGET_SWITCH_SECONDS){
     targetTimer = 0;
 
-    // kies nieuwe letter, liever anders dan vorige
     let next = targetLetter;
     while(next === targetLetter){
       next = letters[Math.floor(Math.random() * letters.length)];
