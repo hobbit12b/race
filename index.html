@@ -7,18 +7,21 @@
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
   canvas { display:block; }
+
   #ui{
     position:absolute; top:12px; left:12px;
-    color:#fff; font-size:18px;
+    color:#fff; font-size:16px;
     background:rgba(0,0,0,.35);
     padding:10px 12px; border-radius:12px;
     backdrop-filter: blur(4px);
+    max-width: min(520px, calc(100vw - 24px));
   }
   #ui .row{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
   .pill{
     display:inline-flex; align-items:center; gap:8px;
     padding:6px 10px; border-radius:999px;
     background:rgba(0,0,0,.28);
+    white-space:nowrap;
   }
   .targetBox{
     width:34px; height:34px; border-radius:10px;
@@ -26,6 +29,27 @@
     background:rgba(255,255,255,.18);
     border:2px solid rgba(255,255,255,.35);
     font-weight:700;
+  }
+
+  .controls{
+    margin-top:10px;
+    padding-top:10px;
+    border-top: 1px solid rgba(255,255,255,.18);
+    display:grid;
+    gap:8px;
+  }
+  .ctrl{
+    display:grid;
+    grid-template-columns: 140px 1fr 70px;
+    gap:10px;
+    align-items:center;
+  }
+  .ctrl label{ opacity:0.95; }
+  .ctrl input[type="range"]{ width:100%; }
+  .value{
+    text-align:right;
+    font-variant-numeric: tabular-nums;
+    opacity:0.95;
   }
 </style>
 </head>
@@ -36,6 +60,20 @@
     <span class="pill">Energie: <span id="energy">100</span></span>
     <span class="pill">Letter: <span class="targetBox" id="targetLetter">a</span></span>
     <span class="pill">Tempo: <span id="tempo">1.00</span></span>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl">
+      <label for="treeStart">Bomen start</label>
+      <input id="treeStart" type="range" min="0.05" max="2.00" step="0.01" value="0.22">
+      <div class="value"><span id="treeStartVal">0.22</span></div>
+    </div>
+
+    <div class="ctrl">
+      <label for="treeEnd">Bomen eind</label>
+      <input id="treeEnd" type="range" min="2.0" max="40.0" step="0.1" value="14.0">
+      <div class="value"><span id="treeEndVal">14.0</span></div>
+    </div>
   </div>
 </div>
 
@@ -52,6 +90,11 @@ resize();
 const uiEnergy = document.getElementById("energy");
 const uiTarget = document.getElementById("targetLetter");
 const uiTempo  = document.getElementById("tempo");
+
+const treeStartSlider = document.getElementById("treeStart");
+const treeEndSlider   = document.getElementById("treeEnd");
+const treeStartVal    = document.getElementById("treeStartVal");
+const treeEndVal      = document.getElementById("treeEndVal");
 
 function loadImg(src){ const img = new Image(); img.src = src; return img; }
 const carStraight = loadImg("car_straight.png");
@@ -95,6 +138,21 @@ const SPEED_MIN = 0.70;
 const SPEED_MAX = 2.20;
 const RELAX_TO_ONE = 0.004;
 
+/* boom snelheid via sliders */
+let treeAccelStart = parseFloat(treeStartSlider.value);
+let treeAccelEnd   = parseFloat(treeEndSlider.value);
+
+function syncTreeUI(){
+  treeAccelStart = parseFloat(treeStartSlider.value);
+  treeAccelEnd   = parseFloat(treeEndSlider.value);
+
+  treeStartVal.textContent = treeAccelStart.toFixed(2);
+  treeEndVal.textContent   = treeAccelEnd.toFixed(1);
+}
+treeStartSlider.addEventListener("input", syncTreeUI);
+treeEndSlider.addEventListener("input", syncTreeUI);
+syncTreeUI();
+
 /* weg geometrie */
 function roadWidthAt(y){
   const t = clamp(y / canvas.height, 0, 1);
@@ -116,7 +174,7 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* ===== Bomen: veel sterker versnellen, geen rare sprongen ===== */
+/* bomen */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -126,11 +184,7 @@ function spawnTree(){
   if(trees.length >= MAX_TREES) return;
 
   const side = Math.random() < 0.5 ? "left" : "right";
-
-  // dicht bij de weg
   const distanceFactor = 0.90 + Math.random() * 0.14;
-
-  // variatie in boomgrootte
   const sizeSeed = 0.88 + Math.random() * 0.28;
 
   trees.push({
@@ -146,21 +200,16 @@ function spawnTree(){
 function treeX(tr){
   const e = roadEdgesAt(tr.baseY);
   const t = clamp(tr.baseY / canvas.height, 0, 1);
-
   const base = 44 + t * 175;
   const margin = base * tr.distanceFactor;
-
   return tr.side === "left" ? (e.left - margin) : (e.right + margin);
 }
 
 function treeSize(tr){
   const t = clamp(tr.baseY / canvas.height, 0, 1);
-
-  // onder echt enorm
   const p = t ** 1.02;
   const w = (16 + p * 1120) * tr.sizeSeed;
   const h = w * 1.10;
-
   return { w, h };
 }
 
@@ -177,21 +226,22 @@ function updateTrees(dt){
 
     const t = clamp(tr.baseY / canvas.height, 0, 1);
 
-    // veel sterker oplopende versnelling
-    // boven traag, daarna snel snel sneller
-    const accel = 0.18 + (t ** 1.75) * 14.0;
+    // dit is nu exact instelbaar via schuifjes
+    // boven start traag, onder eind snel, curve bepaalt hoe snel hij oploopt
+    const curve = 1.85; // hoger is sneller oplopende versnelling
+    const accel = lerp(treeAccelStart, treeAccelEnd, t ** curve);
 
     let dy = (tr.vBase * accel * tempoFactor) * dt;
 
-    // cap tegen frame spikes, maar hoog genoeg dat het niet smoort
-    const maxStep = 90 * dt * tempoFactor;
+    // cap tegen frame spikes, maar hoog genoeg voor echte versnelling
+    const maxStep = 130 * dt * tempoFactor;
     dy = Math.min(dy, maxStep);
 
     tr.baseY += dy;
 
     tr.lastH = treeSize(tr).h;
 
-    // verwijder op tijd, zodat je geen laatste "hik" ziet
+    // opruimen voordat je een laatste tik ziet
     if(tr.baseY - tr.lastH > canvas.height + 80) trees.splice(i, 1);
   }
 }
@@ -215,7 +265,7 @@ function drawTrees(){
   }
 }
 
-/* ===== Achtergrond ===== */
+/* achtergrond */
 function drawGrass(){
   ctx.fillStyle = "#3aa64b";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -230,7 +280,7 @@ function drawGrass(){
   }
 }
 
-/* ===== Weg tekenen, strepen stabiel via wereldafstand + projectie ===== */
+/* weg met stabiele strepen via wereldafstand en projectie */
 function drawRoad(){
   const pts = [];
   for(let y=0; y<=canvas.height+28; y+=28){
@@ -238,7 +288,6 @@ function drawRoad(){
     pts.push({ y, left: e.left, right: e.right, cx: e.cx, w: e.w });
   }
 
-  // asfalt
   ctx.beginPath();
   ctx.moveTo(pts[0].left, pts[0].y);
   for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left, pts[i].y);
@@ -247,7 +296,6 @@ function drawRoad(){
   ctx.fillStyle = "#505050";
   ctx.fill();
 
-  // brede band buiten de weg
   for(let i=0; i<pts.length-1; i++){
     const p1 = pts[i];
     const p2 = pts[i+1];
@@ -271,7 +319,6 @@ function drawRoad(){
     ctx.stroke();
   }
 
-  // randlijnen
   ctx.strokeStyle = "rgba(255,255,255,0.60)";
   ctx.lineWidth = 4;
   ctx.lineCap = "round";
@@ -286,38 +333,27 @@ function drawRoad(){
   for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 3, pts[i].y);
   ctx.stroke();
 
-  // middenstrepen, stabiel patroon zonder overlap
-  // we doen dit in "afstand langs de weg" en projecteren naar y
   const H = canvas.height;
-
-  // perspectief projectie: s is afstand, y is scherm
   const projScale = 0.0042;
+
   function yFromS(s){
     return H / (1 + s * projScale);
   }
 
-  const periodS = 260;   // afstand tussen strepen
-  const dashS   = 105;   // streeplengte in afstand
+  const periodS = 260;
+  const dashS   = 105;
   const sOffset = (periodS - (roadScroll % periodS)) % periodS;
 
-  // teken van onder (s klein) naar boven (s groot)
-  // stop zodra y boven het scherm valt
   for(let s = sOffset; ; s += periodS){
     const y1 = yFromS(s);
     if(y1 < -30) break;
 
     const y2 = yFromS(s + dashS);
-
-    // midden x op basis van wegcentrum op die hoogte
     const cx = roadCenterXAt(y1);
 
     const t = clamp(y1 / H, 0, 1);
-
-    // lijn dikte groeit mee naar beneden
     const dashW = lerp(8, 22, t);
 
-    // veiligheid: houd altijd opening zichtbaar
-    // doordat periodS constant is en dashS kleiner blijft, blijft dat open
     ctx.strokeStyle = "rgba(255,245,190,0.75)";
     ctx.lineWidth = dashW;
     ctx.lineCap = "round";
@@ -328,7 +364,7 @@ function drawRoad(){
   }
 }
 
-/* ===== Auto en letters ===== */
+/* auto en letters */
 function chooseCarSprite(){
   if(car.steerDx < -18) return carLeft;
   if(car.steerDx > 18) return carRight;
@@ -454,9 +490,11 @@ function update(dt){
 function draw(){
   drawGrass();
   drawRoad();
-  drawTrees();
+
+  // items eerst, auto daarna, bomen als laatste zodat ze boven de auto liggen
   for(const it of items) drawItem(it);
   drawCar();
+  drawTrees();
 }
 
 function loop(now){
