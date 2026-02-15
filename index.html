@@ -74,7 +74,10 @@ uiTarget.textContent = targetLetter;
 let targetTimer = 0;
 const TARGET_SWITCH_SECONDS = 9;
 
-const state = { lane: 1, lastTime: performance.now() };
+const state = {
+  lane: 1,
+  lastTime: performance.now()
+};
 
 const car = {
   x: canvas.width/2,
@@ -95,7 +98,7 @@ const SPEED_MIN = 0.70;
 const SPEED_MAX = 2.20;
 const RELAX_TO_ONE = 0.004;
 
-/* ===== Bomen systeem: dichter bij weg, onder veel groter ===== */
+/* ===== Bomen: perspectief snelheid, schaduw gekoppeld, dichter bij weg, onder groter ===== */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -106,16 +109,17 @@ function spawnTree(){
 
   const side = Math.random() < 0.5 ? "left" : "right";
 
-  // dichter op de weg: lagere factor
-  const distanceFactor = 1.08 + Math.random() * 0.22;
+  // dichter bij de weg
+  const distanceFactor = 0.98 + Math.random() * 0.18;
 
-  // kleine variatie in boomgrootte
-  const sizeSeed = 0.92 + Math.random() * 0.22;
+  // variatie in boomsoort zonder zijdelingse drift
+  const sizeSeed = 0.90 + Math.random() * 0.25;
 
+  // baseY is de grondlijn waar stam en schaduw bij horen
   trees.push({
     side,
-    y: -360,
-    vy: 6.1,
+    baseY: -420,
+    vy: 3.2,
     distanceFactor,
     sizeSeed
   });
@@ -131,49 +135,17 @@ function updateTrees(dt){
 
   for(let i = trees.length - 1; i >= 0; i--){
     const tr = trees[i];
-    tr.y += (tr.vy * tempoFactor) * dt;
-    if(tr.y > canvas.height + 820) trees.splice(i, 1);
+
+    // perspectief snelheid, boven langzaam, onder snel
+    const t = clamp(tr.baseY / canvas.height, 0, 1);
+    const accel = 0.22 + (t ** 2.2) * 4.2;
+
+    tr.baseY += (tr.vy * accel * tempoFactor) * dt;
+
+    if(tr.baseY > canvas.height + 900) trees.splice(i, 1);
   }
 }
 
-function treeX(tr){
-  const e = roadEdgesAt(tr.y);
-  const t = clamp(tr.y / canvas.height, 0, 1);
-
-  // dichter op de weg: kleinere basis marge
-  // groeit nog steeds naar beneden voor perspectief
-  const base = 62 + t * 210;
-  const margin = base * tr.distanceFactor;
-
-  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
-}
-
-function drawTrees(){
-  for(const tr of trees){
-    const t = clamp(tr.y / canvas.height, 0, 1);
-
-    // agressiever perspectief en veel groter onderin
-    const p = t ** 1.22;
-
-    // boven klein, onder gigantisch
-    const w = (22 + p * 820) * tr.sizeSeed;
-    const h = w * 1.08;
-
-    const x = treeX(tr);
-
-    ctx.fillStyle = "rgba(0,0,0,0.20)";
-    ctx.beginPath();
-    ctx.ellipse(x, tr.y + h * 0.48, w * 0.32, h * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if(treeImg.complete && treeImg.naturalWidth){
-      ctx.drawImage(treeImg, x - w/2, tr.y - h*0.66, w, h);
-    }
-  }
-}
-/* ===== einde bomen ===== */
-
-// weg geometrie
 function roadWidthAt(y){
   const t = clamp(y / canvas.height, 0, 1);
   return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
@@ -190,6 +162,46 @@ function roadEdgesAt(y){
   const cx = roadCenterXAt(y);
   return { left: cx - w/2, right: cx + w/2, cx, w };
 }
+
+function treeX(tr){
+  const e = roadEdgesAt(tr.baseY);
+  const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+  // marge dichter op de weg, groeit mee naar beneden
+  const base = 48 + t * 190;
+  const margin = base * tr.distanceFactor;
+
+  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
+}
+
+function drawTrees(){
+  for(const tr of trees){
+    const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+    // onder veel groter
+    const p = t ** 1.08;
+    const w = (18 + p * 980) * tr.sizeSeed;
+    const h = w * 1.10;
+
+    const x = treeX(tr);
+
+    // boom staat met de onderkant op baseY
+    const topY = tr.baseY - h;
+
+    // schaduw zit vast aan dezelfde grondlijn, net onder de stam
+    const shadowY = tr.baseY + h * 0.04;
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(x, shadowY, w * 0.34, h * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if(treeImg.complete && treeImg.naturalWidth){
+      ctx.drawImage(treeImg, x - w/2, topY, w, h);
+    }
+  }
+}
+/* ===== einde bomen ===== */
 
 function laneX(lane, y){
   const e = roadEdgesAt(y);
@@ -266,22 +278,25 @@ function drawRoad(){
   for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 3, pts[i].y);
   ctx.stroke();
 
-  /* middenstrepen: boven dichter op elkaar, onder ruim, en onder langer */
+  // middenstrepen
+  // boven dichter op elkaar, onder ruimer, en onder langer
+  // pattern stabiel via roadScroll, geen grote lege ruimte boven
+  const scroll = roadScroll;
+
   for(const p of pts){
     const t = clamp(p.y / canvas.height, 0, 1);
 
-    // afstand tussen strepen: boven klein, onder groot
-    const period = lerp(92, 260, t);
+    // spacing boven kleiner, onder groter
+    const period = lerp(54, 240, t);
 
-    // lengte van de streep: boven kort, onder lang
-    const dashLen = lerp(12, 115, t);
+    // lengte boven kort, onder lang
+    const dashLen = lerp(10, 120, t);
 
-    // breedte van de streep: groeit mee
+    // breedte groeit mee
     const dashW = lerp(8, 22, t);
 
-    // world coordinate, meeschuiven met roadScroll, werkt ook met variabele period
-    const s = p.y + roadScroll;
-    const phase = mod(s, period);
+    // phase met vaste scroll, werkt mooi met variabele period
+    const phase = mod(p.y + scroll, period);
 
     if(phase > dashLen) continue;
 
