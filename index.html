@@ -274,6 +274,29 @@
     background:#111;
     color:#fff;
   }
+
+  #muteBtn{
+    position:absolute;
+    top:10px;
+    right:10px;
+    width:44px;
+    height:44px;
+    border-radius:16px;
+    border:0;
+    background:rgba(255,255,255,0.84);
+    box-shadow: 0 10px 18px rgba(0,0,0,0.20);
+    font-size:22px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #muteBtn:active{ transform: scale(0.98); }
+
 </style>
 </head>
 
@@ -343,6 +366,7 @@
 
 <script>
 
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -397,6 +421,10 @@ function drawEllipse(x, y, rx, ry, rot = 0){
 */
 let soundOn = true;
 const SOUND_KEY = "letter_race_sound_on_v1";
+const BGM_SRC = "audio/gamemusic.mp3";
+let bgm = null;
+let bgmWanted = true;
+
 const SPEECH_KEY = "letter_race_speech_mode_v1";
 let speechMode = "calm";
 try{ const raw = localStorage.getItem(SPEECH_KEY); if(raw === "full" || raw === "calm") speechMode = raw; }catch(e){}
@@ -424,6 +452,12 @@ function setSoundStatus(txt){
   if(soundStatus) soundStatus.textContent = txt || "";
 }
 
+function syncMuteIcon(){
+  const b = document.getElementById("muteBtn");
+  if(!b) return;
+  b.textContent = soundOn ? "🔊" : "🔇";
+}
+
 function setLastAudio(txt){
   const el = document.getElementById("lastAudio");
   if(el) el.textContent = txt || "";
@@ -434,7 +468,17 @@ if(soundToggle){
   soundToggle.addEventListener("change", ()=>{
     soundOn = soundToggle.checked;
     try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
-    setSoundStatus(soundOn ? "Geluid staat aan" : "Geluid staat uit");
+
+    if(soundOn){
+      startBgm();
+      setSoundStatus("Geluid staat aan");
+    }else{
+      stopAllAudio();
+      stopBgm();
+      setSoundStatus("Geluid staat uit");
+    }
+
+    syncMuteIcon();
   });
 }
 
@@ -457,11 +501,45 @@ function stopAllAudio(){
   audioQueue = Promise.resolve();
 }
 
+function ensureBgm(){
+  if(!bgm){
+    bgm = new Audio(BGM_SRC);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.playsInline = true;
+    bgm.volume = 0.22;
+  }
+}
+
+function startBgm(){
+  if(!soundOn) return;
+  if(!bgmWanted) return;
+  ensureBgm();
+
+  try{
+    if(bgm.paused){
+      const p = bgm.play();
+      if(p && typeof p.catch === "function"){
+        p.catch(()=>{});
+      }
+    }
+  }catch(e){}
+}
+
+function stopBgm(){
+  try{
+    if(bgm && !bgm.paused){
+      bgm.pause();
+    }
+  }catch(e){}
+}
+
 
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked = true;
   setSoundStatus(soundOn ? "Geluid klaar" : "Geluid staat uit");
+  startBgm();
 }
 
 function beep(freq = 740, ms = 180, vol = 0.12){
@@ -1506,6 +1584,7 @@ updateCoachLetter(true);
   stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
+
 
 </script>
 
