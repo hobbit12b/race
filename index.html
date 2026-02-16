@@ -9,41 +9,60 @@
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
   canvas { display:block; }
 
-  #ui{
-    position:absolute; top:12px; left:12px;
-    color:#fff; font-size:14px;
-    background:rgba(0,0,0,.35);
-    padding:10px 12px; border-radius:12px;
-    backdrop-filter: blur(4px);
-    max-width: min(560px, calc(100vw - 24px));
+  /* Coureur rechtsboven */
+  #coach {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    z-index: 10;
+    pointer-events: none;
   }
 
-  .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .pill{
-    display:inline-flex; align-items:center; gap:8px;
-    padding:6px 10px; border-radius:999px;
-    background:rgba(0,0,0,.28);
-    white-space:nowrap;
+  #coach img {
+    width: min(180px, 26vw);
+    height: auto;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,0.35));
   }
-  .targetBox{
-    width:34px; height:34px; border-radius:10px;
-    display:inline-flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,.18);
-    border:2px solid rgba(255,255,255,.35);
-    font-weight:700;
-    text-transform:lowercase;
+
+  /* Tekstballon met letter */
+  #speech {
+    position: relative;
+    margin-top: 8px;
+    background: rgba(255,255,255,0.96);
+    color: #111;
+    border-radius: 18px;
+    padding: 10px 14px;
+    box-shadow: 0 10px 18px rgba(0,0,0,0.25);
+    font-weight: 900;
+    font-size: clamp(22px, 4.6vw, 44px);
+    line-height: 1;
+    text-transform: lowercase;
+    min-width: 54px;
+    text-align: center;
+  }
+
+  #speech::after{
+    content:"";
+    position:absolute;
+    right:-10px;
+    top: 18px;
+    width:0; height:0;
+    border-left: 12px solid rgba(255,255,255,0.96);
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
   }
 </style>
 </head>
 
 <body>
 
-<div id="ui">
-  <div class="row">
-    <span class="pill">Energie <span id="energy">100</span></span>
-    <span class="pill">Letter <span class="targetBox" id="targetLetter">a</span></span>
-    <span class="pill">Tempo letters <span id="tempo">1.20</span></span>
-  </div>
+<!-- Coureur overlay -->
+<div id="coach" aria-hidden="true">
+  <div id="speech"><span id="coachLetter">a</span></div>
+  <img src="coureur.png" alt="" />
 </div>
 
 <canvas id="game"></canvas>
@@ -56,9 +75,7 @@ function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
 addEventListener("resize", resize);
 resize();
 
-const uiEnergy = document.getElementById("energy");
-const uiTarget = document.getElementById("targetLetter");
-const uiTempo  = document.getElementById("tempo");
+const uiCoachLetter = document.getElementById("coachLetter");
 
 function loadImg(src){ const img = new Image(); img.src = src; return img; }
 const carStraight = loadImg("car_straight.png");
@@ -90,8 +107,8 @@ let roadScroll = 0;
 const WORLD_TEMPO = 1.0;
 
 /* lettertempo verandert wel */
-let letterTempo = 1.50;
-const LETTER_TEMPO_MIN = 1.50;
+let letterTempo = 1.20;
+const LETTER_TEMPO_MIN = 1.20;
 const LETTER_TEMPO_MAX = 3.00;
 
 const SPEED_UP = 0.12;
@@ -99,7 +116,7 @@ const SPEED_DOWN = 0.10;
 
 const letters = "aeioumkstprln".split("");
 let targetLetter = letters[Math.floor(Math.random()*letters.length)];
-uiTarget.textContent = targetLetter;
+uiCoachLetter.textContent = targetLetter;
 
 let targetTimer = 0;
 const TARGET_SWITCH_SECONDS = 9;
@@ -376,7 +393,9 @@ function updateTargetLetter(dt){
     let next = targetLetter;
     while(next === targetLetter) next = letters[Math.floor(Math.random() * letters.length)];
     targetLetter = next;
-    uiTarget.textContent = targetLetter;
+
+    /* Coureur zegt de nieuwe letter */
+    uiCoachLetter.textContent = targetLetter;
   }
 }
 
@@ -415,13 +434,10 @@ function drawCar(){
 /* update en draw */
 function update(dt){
   energy = Math.max(0, energy - 0.018 * dt);
-  uiEnergy.textContent = Math.floor(energy);
 
   updateTargetLetter(dt);
 
   roadScroll += (9.2 * WORLD_TEMPO) * dt;
-
-  uiTempo.textContent = letterTempo.toFixed(2);
 
   const targetX = laneX(state.lane, car.y);
   const dx = targetX - car.x;
