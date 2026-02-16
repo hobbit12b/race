@@ -342,6 +342,7 @@
 <canvas id="game"></canvas>
 
 <script>
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -629,9 +630,9 @@ function speakFout(letter){
 }
 
 function speakLevel(){
-  if(!soundOn) return;
+  if(!soundOn) return Promise.resolve();
   stopAllAudio();
-  enqueue(randFrom(LEVEL), 1.0);
+  return enqueue(randFrom(LEVEL), 1.0);
 }
 
 if(btnTestSound){
@@ -834,6 +835,8 @@ function spawnConfetti(){
 
 /* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
 let trophyAnimating = false;
+let intermission = false; // pauze tussen letters bij level gehaald
+
 
 function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
@@ -920,12 +923,23 @@ function playTrophyAnimation(onDone){
 
 
 function onLevelCompleted(){
-  speakLevel();
+  intermission = true;
+
+  // haal resterende letters weg zodat het rustig blijft tijdens het feestje
+  items.length = 0;
+  spawnTimer = 0;
+
+  const levelAudio = speakLevel();
+
   spawnConfetti();
   setCoachMood("trophy", 120);
+
   playTrophyAnimation(()=>{
-    setCoachMood("neutral", 0);
-    nextTargetLetter();
+    Promise.resolve(levelAudio).then(()=>{
+      setCoachMood("neutral", 0);
+      nextTargetLetter();
+      intermission = false;
+    });
   });
 }
 
@@ -1373,6 +1387,13 @@ function update(dt){
     }
   }
 
+  if(intermission){
+    // laat de wereld rustig doorrollen, maar geen nieuwe letters, geen botsingen
+    roadScroll += (9.2 * WORLD_TEMPO) * dt;
+    updateTrees(dt);
+    return;
+  }
+
   energy = Math.max(0, energy - 0.018 * dt);
 
   roadScroll += (9.2 * WORLD_TEMPO) * dt;
@@ -1485,6 +1506,7 @@ updateCoachLetter(true);
   stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
+
 </script>
 
 </body>
