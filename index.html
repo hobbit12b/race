@@ -7,6 +7,7 @@
 
 <style>
 
+
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
   canvas { display:block; }
 
@@ -277,29 +278,31 @@
     color:#fff;
   }
 
+  
+
+
   #muteBtn{
-    position:absolute;
-    top:10px;
-    right:10px;
-    width:44px;
-    height:44px;
-    border-radius:16px;
-    border:0;
-    background:rgba(255,255,255,0.84);
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    border: 0;
+    background: rgba(255,255,255,0.88);
     box-shadow: 0 10px 18px rgba(0,0,0,0.20);
-    font-size:22px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    user-select:none;
-    -webkit-user-select:none;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-  
-    z-index: 50;}
+    z-index: 9999;
+  }
   #muteBtn:active{ transform: scale(0.98); }
-
 
 </style>
 </head>
@@ -307,8 +310,7 @@
 <body>
 
 <div id="coach" aria-hidden="true">
-  <button id="muteBtn" aria-label="Geluid aan of uit" type="button">🔊</button>
-  <div id="speech">
+<div id="speech">
     <span id="tagNew">nieuwe letter</span>
     <span id="coachLetter">a</span>
     <div id="progress"></div>
@@ -348,7 +350,7 @@
       <div class="hint">Rustig is fijner als het spel snel gaat</div>
     </div>
 <div class="field">
-      <label>Geluid</label>
+      <label>Stemmen</label>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
         <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
           <input id="soundToggle" type="checkbox" style="width:22px; height:22px;" />
@@ -369,7 +371,10 @@
 
 <canvas id="game"></canvas>
 
+<button id="muteBtn" aria-label="Muziek aan of uit" type="button">🎵</button>
+
 <script>
+
 
 
 
@@ -428,8 +433,10 @@ function drawEllipse(x, y, rx, ry, rot = 0){
 let soundOn = true;
 const SOUND_KEY = "letter_race_sound_on_v1";
 const BGM_SRC = "audio/gamemusic.mp3";
+const BGM_MUTE_KEY = "letter_race_music_on_v1";
 let bgm = null;
-let bgmWanted = true;
+let musicOn = true;
+try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = false; }catch(e){}
 
 const SPEECH_KEY = "letter_race_speech_mode_v1";
 let speechMode = "calm";
@@ -454,14 +461,14 @@ if(speechModeEl){
 }
 
 
-function setSoundStatus(txt){
-  if(soundStatus) soundStatus.textContent = txt || "";
-}
-
-function syncMuteIcon(){
+function syncMusicIcon(){
   const b = document.getElementById("muteBtn");
   if(!b) return;
-  b.textContent = soundOn ? "🔊" : "🔇";
+  b.textContent = musicOn ? "🎵" : "🔇";
+}
+
+function setSoundStatus(txt){
+  if(soundStatus) soundStatus.textContent = txt || "";
 }
 
 function setLastAudio(txt){
@@ -476,15 +483,11 @@ if(soundToggle){
     try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
 
     if(soundOn){
-      startBgm();
-      setSoundStatus("Geluid staat aan");
+      setSoundStatus("Stemmen staan aan");
     }else{
       stopAllAudio();
-      stopBgm();
-      setSoundStatus("Geluid staat uit");
+      setSoundStatus("Stemmen staan uit");
     }
-
-    syncMuteIcon();
   });
 }
 
@@ -518,8 +521,7 @@ function ensureBgm(){
 }
 
 function startBgm(){
-  if(!soundOn) return;
-  if(!bgmWanted) return;
+  if(!musicOn) return;
   ensureBgm();
 
   try{
@@ -544,7 +546,7 @@ function stopBgm(){
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked = true;
-  setSoundStatus(soundOn ? "Geluid klaar" : "Geluid staat uit");
+  setSoundStatus(soundOn ? "Stemmen klaar" : "Stemmen staan uit");
   startBgm();
 }
 
@@ -742,6 +744,28 @@ if(btnTestSound){
   btnTestSound.addEventListener("click", async ()=>{
     unlockAudio();
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
+
+/* muziek mute knop linksboven */
+const muteBtn = document.getElementById("muteBtn");
+if(muteBtn){
+  syncMusicIcon();
+
+  muteBtn.addEventListener("click", (e)=>{
+    e.preventDefault();
+    unlockAudio();
+
+    musicOn = !musicOn;
+    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
+
+    if(musicOn){
+      startBgm();
+    }else{
+      stopBgm();
+    }
+
+    syncMusicIcon();
+  });
+}
 
     // eerst een piep, dan weet je zeker dat de browser audio toelaat
     stopAllAudio();
@@ -1609,6 +1633,7 @@ updateCoachLetter(true);
   stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
+
 
 
 
