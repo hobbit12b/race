@@ -9,6 +9,7 @@
 
 
 
+
   html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
@@ -302,7 +303,9 @@
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     z-index: 9999;
-  }
+  
+    right: auto;
+}
   #muteBtn:active{ transform: scale(0.98); }
 
 
@@ -315,6 +318,17 @@
   }
   #coach{
     pointer-events: auto;
+  }
+
+
+  /* positioneer coureur altijd rechtsboven */
+  #coach{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    z-index: 9998 !important;
+    pointer-events: auto !important;
   }
 
 </style>
@@ -387,6 +401,7 @@
 <button id="muteBtn" aria-label="Muziek aan of uit" type="button">🎵</button>
 
 <script>
+
 
 
 
@@ -746,20 +761,21 @@ function speakOpdracht(letter, attemptNumber = 1){
 function speakGoed(letter){
   if(!soundOn) return;
 
-  // altijd actueel blijven
   stopAllAudio();
 
   const now = performance.now();
-  if(now - lastSpokenAt < 180) return;
+  if(now - lastSpokenAt < 160) return;
   lastSpokenAt = now;
 
   if(speechMode === "calm"){
-    // rustig: focus op de letter, kort en krachtig
+    // focus: letter, dan meteen opnieuw de opdracht voor de volgende
+    enqueue(letterAudio(letter), 1.0);
+    enqueue(randFrom(OPDRACHT), 1.0);
     enqueue(letterAudio(letter), 1.0);
     return;
   }
 
-  // veel praten: eerst compliment, dan altijd de letter
+  // veel praten: compliment en daarna altijd de letter
   enqueue(randFrom(GOED), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
@@ -770,11 +786,11 @@ function speakFout(letter){
   stopAllAudio();
 
   const now = performance.now();
-  if(now - lastSpokenAt < 200) return;
+  if(now - lastSpokenAt < 180) return;
   lastSpokenAt = now;
 
   if(speechMode === "calm"){
-    // rustig: meteen terug naar de letter, kort
+    enqueue(randFrom(OPDRACHT), 1.0);
     enqueue(letterAudio(letter), 1.0);
     return;
   }
@@ -1657,6 +1673,7 @@ function loop(now){
 /* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   unlockAudio();
+  startBgm();
   if(settingsOverlay.style.display === "flex") return;
   if(trophyAnimating) return;
 
@@ -1665,6 +1682,34 @@ canvas.addEventListener("pointerdown", (e)=>{
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
 });
+
+/* TRIPLE_TAP_SETTINGS: 3x snel tikken op de coureur opent het geheime menu */
+(function(){
+  const el = document.getElementById("coach");
+  if(!el) return;
+
+  let taps = 0;
+  let lastTapAt = 0;
+
+  el.addEventListener("contextmenu", (e)=> e.preventDefault());
+
+  el.addEventListener("pointerdown", (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    unlockAudio();
+    startBgm();
+
+    const now = performance.now();
+    if(now - lastTapAt > 520) taps = 0;
+    taps++;
+    lastTapAt = now;
+
+    if(taps >= 3){
+      taps = 0;
+      openSettings();
+    }
+  }, { passive:false });
+})();
 
 /* context menu blokkeren op coureur */
 document.addEventListener("contextmenu", (e)=>{
@@ -1683,6 +1728,7 @@ updateCoachLetter(true);
   stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
+
 
 
 
