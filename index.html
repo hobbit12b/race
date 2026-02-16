@@ -9,6 +9,7 @@
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; }
   canvas { display:block; }
 
+  /* Coureur rechtsboven */
   #coach{
     position:absolute;
     top:10px;
@@ -27,6 +28,7 @@
     user-select:none;
   }
 
+  /* Ballon met letter en voortgang */
   #speech{
     position:relative;
     margin-top:8px;
@@ -50,6 +52,7 @@
     border-bottom: 10px solid transparent;
   }
 
+  /* visuele "nieuwe letter" highlight */
   #speech.change{
     animation: speechPop 520ms ease;
     outline: 4px solid rgba(255,210,80,0.92);
@@ -124,21 +127,7 @@
     background: rgba(0,0,0,0.55);
   }
 
-  #trophy{
-    position:fixed;
-    left:0;
-    top:0;
-    display:none;
-    z-index:40;
-    width:min(560px, 78vw);
-    height:auto;
-    pointer-events:none;
-    opacity:0;
-    filter: drop-shadow(0 18px 30px rgba(0,0,0,0.38));
-    transform: translate(-50%, -50%) scale(1);
-    will-change: transform, opacity;
-  }
-
+  /* Verborgen menu */
   #settingsOverlay{
     position:absolute;
     inset:0;
@@ -227,8 +216,6 @@
   <img id="coachImg" src="coureur1.png" alt="" />
 </div>
 
-<img id="trophy" src="coureur_beker.png" alt="" />
-
 <div id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Instellingen">
   <div id="settingsPanel">
     <h2>Instellingen</h2>
@@ -277,7 +264,6 @@ const uiCoachLetter = document.getElementById("coachLetter");
 const uiProgress = document.getElementById("progress");
 const uiSpeech = document.getElementById("speech");
 const uiTagNew = document.getElementById("tagNew");
-const trophyEl = document.getElementById("trophy");
 
 const settingsOverlay = document.getElementById("settingsOverlay");
 const lettersInput = document.getElementById("lettersInput");
@@ -288,6 +274,7 @@ const btnClose = document.getElementById("closeSettings");
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a + (b-a)*t; }
 
+/* fallback ellipse, voorkomt zwart scherm op sommige iPads */
 function drawEllipse(x, y, rx, ry, rot = 0){
   if (ctx.ellipse){
     ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
@@ -301,6 +288,7 @@ function drawEllipse(x, y, rx, ry, rot = 0){
   ctx.restore();
 }
 
+/* ===== Instelbare letters en doelherhaling ===== */
 const STORAGE_KEY = "letter_race_settings_v1";
 
 function normalizeLetters(str){
@@ -341,6 +329,7 @@ if(saved){
   if(Number.isFinite(n)) requiredHits = clamp(Math.floor(n), 1, 20);
 }
 
+/* doelletter blijft, wisselt pas na requiredHits keer goed */
 let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
 let remainingHits = requiredHits;
 
@@ -380,6 +369,7 @@ function updateProgressDots(){
   }
 }
 
+/* ===== Coureur mood ===== */
 let coachMoodTimer = 0;
 
 function setCoachMood(mood, frames = 50){
@@ -390,66 +380,7 @@ function setCoachMood(mood, frames = 50){
   else coachImgEl.src = "coureur1.png";
 }
 
-let trophyAnimating = false;
-
-function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
-function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
-
-function setTrophyPose(x, y, s, a){
-  trophyEl.style.opacity = String(a);
-  trophyEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
-}
-
-function playTrophyAnimation(onDone){
-  trophyAnimating = true;
-  trophyEl.style.display = "block";
-
-  const startX = innerWidth * 0.5;
-  const startY = innerHeight * 0.46;
-
-  const r = coachImgEl.getBoundingClientRect();
-  const endX = r.left + r.width * 0.55;
-  const endY = r.top + r.height * 0.50;
-
-  const phase1 = 380;
-  const phase2 = 980;
-  const startTime = performance.now();
-
-  setTrophyPose(startX, startY, 1.35, 0.0);
-
-  function tick(now){
-    const elapsed = now - startTime;
-
-    if(elapsed < phase1){
-      const t = easeOutCubic(elapsed / phase1);
-      const s = lerp(1.35, 1.05, t);
-      const a = lerp(0.0, 1.0, t);
-      setTrophyPose(startX, startY, s, a);
-      requestAnimationFrame(tick);
-      return;
-    }
-
-    const e2 = elapsed - phase1;
-    if(e2 < phase2){
-      const t = easeInOutQuad(e2 / phase2);
-      const x = lerp(startX, endX, t);
-      const y = lerp(startY, endY, t);
-      const s = lerp(1.05, 0.34, t);
-      const a = (t < 0.86) ? lerp(1.0, 0.92, t) : lerp(0.92, 0.0, (t - 0.86) / 0.14);
-      setTrophyPose(x, y, s, a);
-      requestAnimationFrame(tick);
-      return;
-    }
-
-    trophyEl.style.display = "none";
-    trophyEl.style.opacity = "0";
-    trophyAnimating = false;
-    if(typeof onDone === "function") onDone();
-  }
-
-  requestAnimationFrame(tick);
-}
-
+/* ===== Verborgen menu openen: 6 snelle tikken op de coureur ===== */
 let tapCount = 0;
 let tapWindowFrames = 0;
 
@@ -501,11 +432,14 @@ btnSave.addEventListener("click", ()=>{
   closeSettings();
 });
 
+/* ===== Spelvariabelen ===== */
 let energy = 100;
 let roadScroll = 0;
 
+/* wereldtempo blijft constant */
 const WORLD_TEMPO = 1.0;
 
+/* lettertempo verandert wel */
 let letterTempo = 1.20;
 const LETTER_TEMPO_MIN = 1.20;
 const LETTER_TEMPO_MAX = 3.00;
@@ -515,6 +449,7 @@ const SPEED_DOWN = 0.10;
 
 const state = { lane: 1, lastTime: performance.now() };
 
+/* auto */
 const car = {
   x: canvas.width/2,
   y: canvas.height * 0.88,
@@ -525,10 +460,12 @@ const car = {
   scale: 1.20
 };
 
+/* letters */
 const items = [];
 const MAX_ITEMS = 2;
 const SPAWN_FRAMES_BASE = 170;
 
+/* weg geometrie */
 function roadWidthAt(y){
   const t = clamp(y / canvas.height, 0, 1);
   return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
@@ -549,6 +486,7 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
+/* bomen, vaste instellingen */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -636,6 +574,7 @@ function drawTrees(){
   }
 }
 
+/* achtergrond */
 function drawGrass(){
   ctx.fillStyle = "#3aa64b";
   ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -650,6 +589,7 @@ function drawGrass(){
   }
 }
 
+/* weg met stabiele middenstrepen */
 function drawRoad(){
   const pts = [];
   for(let y=0; y<=canvas.height+28; y+=28){
@@ -738,6 +678,7 @@ function drawRoad(){
   }
 }
 
+/* letters */
 function drawItem(it){
   const t = clamp(it.y / canvas.height, 0, 1);
   const size = 26 + t * 125;
@@ -782,6 +723,7 @@ function spawnLetter(){
 
 let spawnTimer = 0;
 
+/* auto tekenen */
 function chooseCarSprite(){
   if(car.steerDx < -18) return carLeft;
   if(car.steerDx > 18) return carRight;
@@ -813,6 +755,7 @@ function drawCar(){
   ctx.restore();
 }
 
+/* ===== doelwissel op basis van aantal keer goed ===== */
 function nextTargetLetter(){
   if(!allowedLetters.length) allowedLetters = ["a"];
 
@@ -832,131 +775,9 @@ function nextTargetLetter(){
   updateCoachLetter(true);
 }
 
-function onLevelCompleted(){
-  setCoachMood("happy", 90);
-  playTrophyAnimation(()=>{
-    setCoachMood("neutral", 0);
-    nextTargetLetter();
-  });
-}
-
-let energy = 100;
-let roadScroll = 0;
-
-const WORLD_TEMPO = 1.0;
-
-let letterTempo = 1.20;
-const LETTER_TEMPO_MIN = 1.20;
-const LETTER_TEMPO_MAX = 3.00;
-
-const SPEED_UP = 0.12;
-const SPEED_DOWN = 0.10;
-
-const state = { lane: 1, lastTime: performance.now() };
-
-const car = {
-  x: canvas.width/2,
-  y: canvas.height * 0.88,
-  tilt: 0,
-  steerDx: 0,
-  w: 150,
-  h: 90,
-  scale: 1.20
-};
-
-const items = [];
-const MAX_ITEMS = 2;
-const SPAWN_FRAMES_BASE = 170;
-
-function roadWidthAt(y){
-  const t = clamp(y / canvas.height, 0, 1);
-  return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
-}
-function roadCenterXAt(y){
-  const t = clamp(y / canvas.height, 0, 1);
-  const slow = Math.sin(roadScroll / 720) * (canvas.width * 0.03);
-  return canvas.width / 2 + slow * (1 - t);
-}
-function roadEdgesAt(y){
-  const w = roadWidthAt(y);
-  const cx = roadCenterXAt(y);
-  return { left: cx - w/2, right: cx + w/2, cx, w };
-}
-function laneX(lane, y){
-  const e = roadEdgesAt(y);
-  const laneW = e.w / 3;
-  return e.left + laneW * (lane + 0.5);
-}
-
-const trees = [];
-const MAX_TREES = 4;
-const TREE_SPAWN_FRAMES_BASE = 240;
-let treeSpawnTimer = 0;
-
-const TREE_ACCEL_START = 2.48;
-const TREE_ACCEL_END   = 90.0;
-const X_RIGHT_END = 319;
-const X_LEFT_END  = 256;
-
-function spawnTree(){
-  if(trees.length >= MAX_TREES) return;
-  const side = Math.random() < 0.5 ? "left" : "right";
-  const sizeSeed = 0.88 + Math.random() * 0.28;
-
-  trees.push({
-    side,
-    baseY: -460,
-    sizeSeed
-  });
-}
-
-function treeSize(tr){
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-  const p = t ** 1.05;
-  const w = (18 + p * 1180) * tr.sizeSeed;
-  const h = w * 1.10;
-  return { w, h };
-}
-
-function treeX(tr){
-  const e = roadEdgesAt(tr.baseY);
-  const t = clamp(tr.baseY / canvas.height, 0, 1);
-
-  const marginTop = 46;
-  const marginBottom = tr.side === "left" ? X_LEFT_END : X_RIGHT_END;
-  const margin = lerp(marginTop, marginBottom, t ** 1.15);
-
-  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
-}
-
-function updateTrees(dt){
-  treeSpawnTimer += dt;
-  const threshold = TREE_SPAWN_FRAMES_BASE / WORLD_TEMPO;
-  if(treeSpawnTimer > threshold){
-    treeSpawnTimer = 0;
-    spawnTree();
-  }
-
-  for(let i = trees.length - 1; i >= 0; i--){
-    const tr = trees[i];
-    const t = clamp(tr.baseY / canvas.height, 0, 1);
-
-    const curve = 2.10;
-    const accel = lerp(TREE_ACCEL_START, TREE_ACCEL_END, t ** curve);
-
-    let dy = (accel * WORLD_TEMPO) * dt * 3.0;
-
-    const maxStep = 190 * dt * WORLD_TEMPO;
-    dy = Math.min(dy, maxStep);
-
-    tr.baseY += dy;
-
-    const h = treeSize(tr).h;
-    if(tr.baseY - h > canvas.height + 80) trees.splice(i, 1);
-  }
-}
-
+/* update en draw */
 function update(dt){
+  /* tikken tellen voor verborgen menu */
   if(tapWindowFrames > 0){
     tapWindowFrames -= dt;
     if(tapWindowFrames <= 0){
@@ -965,6 +786,7 @@ function update(dt){
     }
   }
 
+  /* mood terug naar neutraal */
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
     if(coachMoodTimer <= 0){
@@ -973,6 +795,7 @@ function update(dt){
   }
 
   energy = Math.max(0, energy - 0.018 * dt);
+
   roadScroll += (9.2 * WORLD_TEMPO) * dt;
 
   const targetX = laneX(state.lane, car.y);
@@ -1003,13 +826,14 @@ function update(dt){
         remainingHits = Math.max(0, remainingHits - 1);
         updateProgressDots();
 
-        if(remainingHits <= 0 && !trophyAnimating){
-          onLevelCompleted();
+        if(remainingHits <= 0){
+          nextTargetLetter();
         }
       } else {
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
 
+        /* bij fout gaat er één rondje weg */
         if(remainingHits < requiredHits){
           remainingHits = Math.min(requiredHits, remainingHits + 1);
           updateProgressDots();
@@ -1032,6 +856,7 @@ function update(dt){
 function draw(){
   drawGrass();
   drawRoad();
+
   for(const it of items) drawItem(it);
   drawCar();
   drawTrees();
@@ -1041,16 +866,15 @@ function loop(now){
   const dt = Math.min(3, (now - state.lastTime) / (1000/60));
   state.lastTime = now;
 
-  if(energy > 0 && settingsOverlay.style.display !== "flex" && !trophyAnimating){
-    update(dt);
-  }
+  if(energy > 0 && settingsOverlay.style.display !== "flex") update(dt);
   draw();
+
   requestAnimationFrame(loop);
 }
 
+/* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   if(settingsOverlay.style.display === "flex") return;
-  if(trophyAnimating) return;
 
   const x = e.clientX;
   if(x < canvas.width / 3) state.lane = 0;
@@ -1058,6 +882,7 @@ canvas.addEventListener("pointerdown", (e)=>{
   else state.lane = 2;
 });
 
+/* start */
 updateCoachLetter(true);
 requestAnimationFrame(loop);
 </script>
