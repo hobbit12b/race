@@ -69,6 +69,20 @@ const treeImg = loadImg("tree.png");
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a + (b-a)*t; }
 
+/* fallback ellipse, voorkomt zwart scherm op sommige iPads */
+function drawEllipse(x, y, rx, ry, rot = 0){
+  if (ctx.ellipse){
+    ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(rx, ry);
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.restore();
+}
+
 let energy = 100;
 let roadScroll = 0;
 
@@ -129,7 +143,7 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* bomen, vaste instellingen, geen sliders meer */
+/* bomen, vaste instellingen */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -208,7 +222,7 @@ function drawTrees(){
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.ellipse(x, shadowY, w * 0.34, h * 0.12, 0, 0, Math.PI * 2);
+    drawEllipse(x, shadowY, w * 0.34, h * 0.12, 0);
     ctx.fill();
 
     if(treeImg.complete && treeImg.naturalWidth){
@@ -227,7 +241,7 @@ function drawGrass(){
     const y = (i * 140 + roadScroll * 1.25) % (canvas.height + 220) - 110;
     ctx.fillStyle = "rgba(0,0,0,0.05)";
     ctx.beginPath();
-    ctx.ellipse(x, y, 120, 60, 0, 0, Math.PI * 2);
+    drawEllipse(x, y, 120, 60, 0);
     ctx.fill();
   }
 }
@@ -389,7 +403,7 @@ function drawCar(){
 
   ctx.fillStyle = "rgba(0,0,0,0.22)";
   ctx.beginPath();
-  ctx.ellipse(0, h * 0.36, w * 0.34, h * 0.22, 0, 0, Math.PI * 2);
+  drawEllipse(0, h * 0.36, w * 0.34, h * 0.22, 0);
   ctx.fill();
 
   if(img.complete && img.naturalWidth){
@@ -407,17 +421,14 @@ function update(dt){
 
   roadScroll += (9.2 * WORLD_TEMPO) * dt;
 
-  // tempo display is tempo letters
   uiTempo.textContent = letterTempo.toFixed(2);
 
-  // auto naar lane
   const targetX = laneX(state.lane, car.y);
   const dx = targetX - car.x;
   car.steerDx = dx;
   car.x += dx * (0.085 * dt);
   car.tilt += (clamp(dx / (canvas.width * 0.75), -0.28, 0.28) - car.tilt) * (0.09 * dt);
 
-  // letters spawn, sneller bij hoger lettertempo
   spawnTimer += dt;
   const spawnThreshold = SPAWN_FRAMES_BASE / letterTempo;
   if(spawnTimer > spawnThreshold){
@@ -425,7 +436,6 @@ function update(dt){
     spawnLetter();
   }
 
-  // letters bewegen en hit detectie, tempo letters bepaalt snelheid
   for(let i = items.length - 1; i >= 0; i--){
     const it = items[i];
     it.y += (it.vy * letterTempo) * dt;
@@ -446,7 +456,45 @@ function update(dt){
       continue;
     }
 
-    // missen van een doel letter, ook vertragen
     if(it.y > canvas.height + 160){
       if(it.isTarget){
-        letterTe
+        letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
+      }
+      items.splice(i, 1);
+    }
+  }
+
+  updateTrees(dt);
+}
+
+function draw(){
+  drawGrass();
+  drawRoad();
+
+  for(const it of items) drawItem(it);
+  drawCar();
+  drawTrees();
+}
+
+function loop(now){
+  const dt = Math.min(3, (now - state.lastTime) / (1000/60));
+  state.lastTime = now;
+
+  if(energy > 0) update(dt);
+  draw();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* besturing */
+canvas.addEventListener("pointerdown", (e)=>{
+  const x = e.clientX;
+  if(x < canvas.width / 3) state.lane = 0;
+  else if(x < canvas.width * 2 / 3) state.lane = 1;
+  else state.lane = 2;
+});
+</script>
+
+</body>
+</html>
