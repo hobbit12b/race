@@ -145,6 +145,7 @@ const TARGET_SWITCH_SECONDS = 9;
 
 const state = { lane: 1, lastTime: performance.now() };
 
+/* auto */
 const car = {
   x: canvas.width/2,
   y: canvas.height * 0.78,
@@ -155,7 +156,7 @@ const car = {
   scale: 1.34
 };
 
-/* items */
+/* items, maar één keer gedeclareerd */
 const items = [];
 const MAX_ITEMS = 2;
 const SPAWN_FRAMES_BASE = 170;
@@ -379,10 +380,6 @@ function drawTrees(){
 }
 
 /* letters */
-const items = [];
-const MAX_ITEMS = 2;
-const SPAWN_FRAMES_BASE = 170;
-
 function drawItem(it){
   const t = clamp(it.y / canvas.height, 0, 1);
   const size = 26 + t * 125;
