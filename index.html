@@ -310,7 +310,16 @@
       <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
       <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
     
+    
     <div class="field">
+      <label>Spraak</label>
+      <select id="speechMode" style="width:100%; padding:12px 12px; border-radius:12px; border:2px solid rgba(0,0,0,0.12); font-weight:800;">
+        <option value="calm">Rustig, bijhouden</option>
+        <option value="full">Veel praten</option>
+      </select>
+      <div class="hint">Rustig is fijner als het spel snel gaat</div>
+    </div>
+<div class="field">
       <label>Geluid</label>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
         <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
@@ -387,6 +396,10 @@ function drawEllipse(x, y, rx, ry, rot = 0){
 */
 let soundOn = true;
 const SOUND_KEY = "letter_race_sound_on_v1";
+const SPEECH_KEY = "letter_race_speech_mode_v1";
+let speechMode = "calm";
+try{ const raw = localStorage.getItem(SPEECH_KEY); if(raw === "full" || raw === "calm") speechMode = raw; }catch(e){}
+
 
 try{
   const raw = localStorage.getItem(SOUND_KEY);
@@ -396,6 +409,15 @@ try{
 const soundToggle = document.getElementById("soundToggle");
 const soundStatus = document.getElementById("soundStatus");
 const btnTestSound = document.getElementById("btnTestSound");
+const speechModeEl = document.getElementById("speechMode");
+if(speechModeEl){
+  speechModeEl.value = speechMode;
+  speechModeEl.addEventListener("change", ()=>{
+    speechMode = speechModeEl.value === "full" ? "full" : "calm";
+    try{ localStorage.setItem(SPEECH_KEY, speechMode); }catch(e){}
+  });
+}
+
 
 function setSoundStatus(txt){
   if(soundStatus) soundStatus.textContent = txt || "";
@@ -417,6 +439,23 @@ if(soundToggle){
 
 let audioUnlocked = false;
 let audioQueue = Promise.resolve();
+
+let queueToken = 0;
+let currentAudio = null;
+let lastSpokenAt = 0;
+
+function stopAllAudio(){
+  queueToken++;
+  try{
+    if(currentAudio){
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+  }catch(e){}
+  currentAudio = null;
+  audioQueue = Promise.resolve();
+}
+
 
 function unlockAudio(){
   if(audioUnlocked) return;
@@ -450,41 +489,52 @@ function beep(freq = 740, ms = 180, vol = 0.12){
 }
 
 function playClip(src, vol = 1.0){
+  const myToken = queueToken;
+
   return new Promise((resolve)=>{
     if(!soundOn){ resolve(); return; }
+    if(myToken !== queueToken){ resolve(); return; }
 
     setLastAudio("Laatste audio: " + src);
     const a = new Audio(src);
+    currentAudio = a;
+
     a.preload = "auto";
     a.playsInline = true;
     a.volume = vol;
 
     const done = ()=>{
       a.removeEventListener("ended", done);
-      a.removeEventListener("error", done);
+      a.removeEventListener("error", onErr);
+      if(currentAudio === a) currentAudio = null;
       resolve();
     };
 
-    a.addEventListener("ended", done);
-    a.addEventListener("error", ()=>{
+    const onErr = ()=>{
       setSoundStatus("Bestand niet gevonden, check pad");
       setLastAudio("Niet gevonden: " + src);
       done();
-    });
+    };
+
+    a.addEventListener("ended", done);
+    a.addEventListener("error", onErr);
 
     const p = a.play();
     if(p && typeof p.catch === "function"){
       p.catch(()=>{
-        // meestal betekent dit dat de browser nog geen user gesture heeft gehad
         setSoundStatus("Browser blokkeert audio, tik 1x op het scherm");
-        resolve();
+        done();
       });
     }
   });
 }
 
 function enqueue(src, vol = 1.0){
-  audioQueue = audioQueue.then(()=> playClip(src, vol)).catch(()=>{});
+  const myToken = queueToken;
+  audioQueue = audioQueue.then(()=>{
+    if(myToken !== queueToken) return;
+    return playClip(src, vol);
+  }).catch(()=>{});
   return audioQueue;
 }
 
@@ -532,6 +582,14 @@ const TEL = {
 function speakOpdracht(letter, attemptNumber = 1){
   if(!soundOn) return;
 
+  const now = performance.now();
+  if(now - lastSpokenAt < 350) return;
+  lastSpokenAt = now;
+
+  if(speechMode === "calm"){
+    if(!(attemptNumber === 1 || attemptNumber === 3 || attemptNumber === 5)) return;
+  }
+
   if(attemptNumber >= 2 && attemptNumber <= 5){
     enqueue(PREFIX_EN_NU_DE, 1.0);
     enqueue(TEL[attemptNumber], 1.0);
@@ -542,19 +600,37 @@ function speakOpdracht(letter, attemptNumber = 1){
 }
 
 function speakGoed(letter){
+  if(!soundOn) return;
+
+  const now = performance.now();
+  if(now - lastSpokenAt < 220) return;
+  lastSpokenAt = now;
+
   enqueue(randFrom(GOED), 1.0);
-  if(Math.random() < 0.55){
+
+  if(speechMode === "full" && Math.random() < 0.55){
     enqueue(letterAudio(letter), 1.0);
   }
 }
 
 function speakFout(letter){
+  if(!soundOn) return;
+
+  stopAllAudio();
+
   enqueue(randFrom(FOUT), 1.0);
-  enqueue(randFrom(OPDRACHT), 1.0);
-  enqueue(letterAudio(letter), 1.0);
+
+  if(speechMode === "full"){
+    enqueue(randFrom(OPDRACHT), 1.0);
+    enqueue(letterAudio(letter), 1.0);
+  } else {
+    enqueue(letterAudio(letter), 1.0);
+  }
 }
 
 function speakLevel(){
+  if(!soundOn) return;
+  stopAllAudio();
   enqueue(randFrom(LEVEL), 1.0);
 }
 
@@ -564,9 +640,11 @@ if(btnTestSound){
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
 
     // eerst een piep, dan weet je zeker dat de browser audio toelaat
+    stopAllAudio();
     await beep(820, 160, 0.14);
 
     // daarna echte mp3 bestanden
+    stopAllAudio();
     speakOpdracht(targetLetter, 1);
     enqueue(randFrom(GOED), 1.0);
   });
@@ -932,6 +1010,7 @@ btnSave.addEventListener("click", ()=>{
 
   targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
   updateCoachLetter(true);
+  stopAllAudio();
   speakOpdracht(targetLetter, 1);
   setCoachMood("neutral", 0);
 
@@ -1325,6 +1404,7 @@ function update(dt){
 
         remainingHits = Math.max(0, remainingHits - 1);
         updateProgressDots();
+        stopAllAudio();
         speakGoed(targetLetter);
         if(remainingHits > 0){
           const attemptNumber = (requiredHits - remainingHits) + 1;
@@ -1402,6 +1482,7 @@ document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, {
 
 /* start */
 updateCoachLetter(true);
+  stopAllAudio();
   speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
 </script>
