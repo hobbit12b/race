@@ -20,6 +20,10 @@
     z-index:10;
   }
   #coach img{
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
     width:min(180px, 26vw);
     height:auto;
     filter: drop-shadow(0 10px 18px rgba(0,0,0,0.35));
@@ -278,7 +282,7 @@
     <span id="coachLetter">a</span>
     <div id="progress"></div>
   </div>
-  <img id="coachImg" src="coureur1.png" alt="" />
+  <img id="coachImg" src="coureur1.png" alt="" draggable="false" />
 </div>
 
 <div id="confetti"></div>
@@ -657,6 +661,10 @@ function disarmLongPress(){
   }
 }
 
+/* iOS Safari: voorkom afbeeldingsmenu bij lang indrukken */
+coachImgEl.addEventListener("contextmenu", (e)=> e.preventDefault());
+coachImgEl.addEventListener("dragstart", (e)=> e.preventDefault());
+
 coachImgEl.addEventListener("pointerdown", (e)=>{
   e.preventDefault();
   e.stopPropagation();
@@ -666,6 +674,15 @@ coachImgEl.addEventListener("pointerdown", (e)=>{
 coachImgEl.addEventListener("pointerup", ()=> disarmLongPress());
 coachImgEl.addEventListener("pointercancel", ()=> disarmLongPress());
 coachImgEl.addEventListener("pointerleave", ()=> disarmLongPress());
+
+/* extra: touch events met passive:false zodat preventDefault werkt */
+coachImgEl.addEventListener("touchstart", (e)=>{
+  e.preventDefault();
+  armLongPress();
+}, { passive:false });
+
+coachImgEl.addEventListener("touchend", ()=> disarmLongPress(), { passive:true });
+coachImgEl.addEventListener("touchcancel", ()=> disarmLongPress(), { passive:true });
 
 btnClose.addEventListener("click", ()=> closeSettings());
 
@@ -1127,6 +1144,12 @@ canvas.addEventListener("pointerdown", (e)=>{
   else if(x < canvas.width * 2 / 3) state.lane = 1;
   else state.lane = 2;
 });
+
+/* context menu blokkeren op coureur */
+document.addEventListener("contextmenu", (e)=>{
+  const coachImg = document.getElementById("coachImg");
+  if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
+}, { capture:true });
 
 /* zoom blokkeren */
 document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
