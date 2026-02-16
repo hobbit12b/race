@@ -11,6 +11,7 @@
 
 
 
+
   html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
@@ -314,7 +315,7 @@
     top: calc(12px + env(safe-area-inset-top));
     right: calc(12px + env(safe-area-inset-right));
     z-index: 9998;
-    pointer-events: none;
+    pointer-events: auto;
   }
   #coach{
     pointer-events: auto;
@@ -346,6 +347,42 @@
     right: auto !important;
     left: auto !important;
     pointer-events: auto !important;
+  }
+
+
+  /* COACH_RIGHT_FORCE_V22 */
+  #coachWrap{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 9998 !important;
+    pointer-events: auto !important;
+  }
+  #coach{
+    pointer-events: auto !important;
+  }
+
+  #toast{
+    position: fixed;
+    top: calc(68px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+  }
+  #toast.show{
+    opacity: 1;
+    transform: translateY(0);
   }
 
 </style>
@@ -414,6 +451,7 @@
 </div>
 
 <canvas id="game"></canvas>
+<div id="toast"></div>
 
 <button id="muteBtn" aria-label="Muziek aan of uit" type="button">🎵</button>
 
@@ -425,8 +463,19 @@
 
 
 
+
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._tm);
+  toast._tm = setTimeout(()=> t.classList.remove("show"), 900);
+}
+
 canvas.style.touchAction = "none";
 
 
@@ -618,10 +667,10 @@ function startBgm(){
 }
 
 function stopBgm(){
+  ensureBgm();
   try{
-    if(bgm && !bgm.paused){
-      bgm.pause();
-    }
+    bgm.pause();
+    bgm.currentTime = 0;
   }catch(e){}
 }
 
@@ -828,34 +877,6 @@ if(btnTestSound){
     unlockAudio();
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
 
-/* MUTE_BUTTON_BIND_V21: mute knop schakelt alleen muziek */
-(function(){
-  const muteBtn = document.getElementById("muteBtn");
-  if(!muteBtn) return;
-
-  function applyIcon(){
-    muteBtn.textContent = musicOn ? "🎵" : "🔇";
-  }
-
-  applyIcon();
-
-  muteBtn.addEventListener("pointerdown", (e)=>{
-    e.preventDefault();
-    e.stopPropagation();
-    unlockAudio(); // zorgt dat audio is toegestaan
-
-    musicOn = !musicOn;
-    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
-
-    if(musicOn){
-      startBgm();
-    }else{
-      stopBgm();
-    }
-
-    applyIcon();
-  }, { passive:false });
-})();
 
 
     // eerst een piep, dan weet je zeker dat de browser audio toelaat
@@ -1708,42 +1729,6 @@ canvas.addEventListener("pointerdown", (e)=>{
   else state.lane = 2;
 });
 
-/* TRIPLE_TAP_SETTINGS_V21: 3x snel tikken op coureur opent geheime menu */
-(function(){
-  const targets = [
-    document.getElementById("coachWrap"),
-    document.getElementById("coach"),
-    document.getElementById("coachImg")
-  ].filter(Boolean);
-
-  if(!targets.length) return;
-
-  let taps = 0;
-  let lastTapAt = 0;
-
-  function onTap(e){
-    e.preventDefault();
-    e.stopPropagation();
-    unlockAudio();
-    startBgm();
-
-    const now = performance.now();
-    if(now - lastTapAt > 650) taps = 0;
-    taps++;
-    lastTapAt = now;
-
-    if(taps >= 3){
-      taps = 0;
-      openSettings();
-    }
-  }
-
-  for(const el of targets){
-    el.addEventListener("contextmenu", (e)=> e.preventDefault());
-    el.addEventListener("pointerdown", onTap, { passive:false });
-    el.addEventListener("touchstart", onTap, { passive:false });
-  }
-})();
 
 
 /* context menu blokkeren op coureur */
@@ -1769,6 +1754,76 @@ requestAnimationFrame(loop);
 
 
 
+
+
+
+/* MUTE_BUTTON_BIND_V22: mute knop schakelt alleen muziek */
+(function(){
+  const muteBtn = document.getElementById("muteBtn");
+  if(!muteBtn) return;
+
+  function applyIcon(){
+    muteBtn.textContent = musicOn ? "🎵" : "🔇";
+  }
+  applyIcon();
+
+  const toggle = (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    unlockAudio();
+
+    musicOn = !musicOn;
+    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
+
+    if(musicOn){ startBgm(); toast("Muziek aan"); }
+    else { stopBgm(); toast("Muziek uit"); }
+
+    applyIcon();
+  };
+
+  muteBtn.addEventListener("pointerdown", toggle, { passive:false });
+  muteBtn.addEventListener("touchstart", toggle, { passive:false });
+  muteBtn.addEventListener("contextmenu", (e)=> e.preventDefault());
+})();
+
+
+/* TRIPLE_TAP_SETTINGS_V22: 3x snel tikken op de coureur opent docent menu */
+(function(){
+  const targets = [
+    document.getElementById("coachWrap"),
+    document.getElementById("coach"),
+    document.getElementById("coachImg")
+  ].filter(Boolean);
+
+  if(!targets.length) return;
+
+  let taps = 0;
+  let last = 0;
+
+  const tap = (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    unlockAudio();
+    startBgm();
+
+    const now = performance.now();
+    if(now - last > 700) taps = 0;
+    taps++;
+    last = now;
+
+    if(taps >= 3){
+      taps = 0;
+      openSettings();
+      toast("Docent menu");
+    }
+  };
+
+  for(const el of targets){
+    el.addEventListener("pointerdown", tap, { passive:false });
+    el.addEventListener("touchstart", tap, { passive:false });
+    el.addEventListener("contextmenu", (e)=> e.preventDefault());
+  }
+})();
 
 </script>
 
