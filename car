@@ -114,7 +114,7 @@ const car = {
   steerDx: 0,
   w: 150,
   h: 90,
-  scale: 1.10
+  scale: 1.20
 };
 
 /* letters */
