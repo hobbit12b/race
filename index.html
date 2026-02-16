@@ -434,8 +434,8 @@
       <label for="hitsInput">Aantal keer goed per letter</label>
       <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
       <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
-    
-    
+    </div>
+
     <div class="field">
       <label>Spraak</label>
       <select id="speechMode" style="width:100%; padding:12px 12px; border-radius:12px; border:2px solid rgba(0,0,0,0.12); font-weight:800;">
@@ -517,6 +517,13 @@ document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:fals
 let lastTouchEnd = 0;
 document.addEventListener("touchend", (e)=>{
   const now = Date.now();
+
+  // Als het docent menu open is, wil je juist snel kunnen tikken op letters
+  if(settingsOverlay && settingsOverlay.style.display === "flex"){
+    lastTouchEnd = now;
+    return;
+  }
+
   if(now - lastTouchEnd < 350){
     e.preventDefault();
   }
@@ -923,15 +930,9 @@ function speakGoed(letter){
   if(now - lastSpokenAt < 160) return;
   lastSpokenAt = now;
 
-  if(speechMode === "calm"){
-    // altijd opdracht, dan letter, zodat de lettertraining blijft hangen
-    enqueue(randFrom(OPDRACHT), 1.0);
-    enqueue(letterAudio(letter), 1.0);
-    return;
-  }
-
+  // na elk goed fragment altijd meteen de letter
+  // dit werkt in elke praatstand en op elk device
   enqueue(randFrom(GOED), 1.0);
-  enqueue(randFrom(OPDRACHT), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
 
