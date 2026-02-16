@@ -37,8 +37,9 @@
     border-radius:18px;
     padding:10px 14px 10px 14px;
     box-shadow:0 10px 18px rgba(0,0,0,0.25);
-    min-width:74px;
+    min-width:84px;
     text-align:center;
+    transform-origin: 85% 30%;
   }
   #speech::after{
     content:"";
@@ -50,13 +51,66 @@
     border-top: 10px solid transparent;
     border-bottom: 10px solid transparent;
   }
+
+  /* visuele "nieuwe letter" highlight */
+  #speech.change{
+    animation: speechPop 520ms ease;
+    outline: 4px solid rgba(255,210,80,0.92);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.30), 0 0 0 10px rgba(255,210,80,0.18);
+  }
+  @keyframes speechPop{
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.10) rotate(-1deg); }
+    60%  { transform: scale(0.98) rotate(1deg); }
+    100% { transform: scale(1); }
+  }
+
   #coachLetter{
     display:block;
     font-weight:900;
     font-size: clamp(24px, 5.0vw, 48px);
     line-height:1;
     text-transform:lowercase;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    letter-spacing: 0.02em;
   }
+  #coachLetter.change{
+    animation: letterBounce 600ms ease;
+  }
+  @keyframes letterBounce{
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.26); }
+    55%  { transform: scale(0.92); }
+    80%  { transform: scale(1.10); }
+    100% { transform: scale(1); }
+  }
+
+  #tagNew{
+    position:absolute;
+    left:50%;
+    top:-12px;
+    transform: translateX(-50%);
+    background: rgba(255,210,80,0.98);
+    color:#111;
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:900;
+    font-size:12px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+    opacity:0;
+    pointer-events:none;
+  }
+  #tagNew.show{
+    animation: tagSlide 720ms ease;
+  }
+  @keyframes tagSlide{
+    0%   { opacity:0; transform: translateX(-50%) translateY(6px) scale(0.96); }
+    25%  { opacity:1; transform: translateX(-50%) translateY(0px) scale(1.02); }
+    70%  { opacity:1; transform: translateX(-50%) translateY(0px) scale(1.02); }
+    100% { opacity:0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+  }
+
   #progress{
     display:flex;
     justify-content:center;
@@ -114,6 +168,8 @@
     padding:10px 12px;
     font-size:16px;
     outline:none;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    font-weight: 700;
   }
   input:focus{
     border-color: rgba(0,0,0,0.28);
@@ -136,6 +192,7 @@
     font-size:15px;
     font-weight:800;
     cursor:pointer;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
   }
   .btnGhost{
     background: rgba(0,0,0,0.08);
@@ -152,6 +209,7 @@
 
 <div id="coach" aria-hidden="true">
   <div id="speech">
+    <span id="tagNew">nieuwe letter</span>
     <span id="coachLetter">a</span>
     <div id="progress"></div>
   </div>
@@ -204,6 +262,8 @@ const coachSad     = loadImg("coureur_sip.png");
 const coachImgEl = document.getElementById("coachImg");
 const uiCoachLetter = document.getElementById("coachLetter");
 const uiProgress = document.getElementById("progress");
+const uiSpeech = document.getElementById("speech");
+const uiTagNew = document.getElementById("tagNew");
 
 const settingsOverlay = document.getElementById("settingsOverlay");
 const lettersInput = document.getElementById("lettersInput");
@@ -273,9 +333,28 @@ if(saved){
 let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
 let remainingHits = requiredHits;
 
-function updateCoachLetter(){
+function flashNewLetter(){
+  uiSpeech.classList.remove("change");
+  uiCoachLetter.classList.remove("change");
+  uiTagNew.classList.remove("show");
+
+  void uiSpeech.offsetWidth;
+
+  uiSpeech.classList.add("change");
+  uiCoachLetter.classList.add("change");
+  uiTagNew.classList.add("show");
+
+  setTimeout(()=>{
+    uiSpeech.classList.remove("change");
+    uiCoachLetter.classList.remove("change");
+    uiTagNew.classList.remove("show");
+  }, 760);
+}
+
+function updateCoachLetter(doFlash){
   uiCoachLetter.textContent = targetLetter;
   updateProgressDots();
+  if(doFlash) flashNewLetter();
 }
 
 function updateProgressDots(){
@@ -345,7 +424,7 @@ btnSave.addEventListener("click", ()=>{
   remainingHits = requiredHits;
 
   targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
-  updateCoachLetter();
+  updateCoachLetter(true);
   setCoachMood("neutral", 0);
 
   saveSettings({ letters: allowedLetters.join(""), requiredHits });
@@ -609,7 +688,7 @@ function drawItem(it){
   ctx.fillRect(it.x - size/2, it.y - size/2, size, size);
 
   ctx.fillStyle = "#111";
-  ctx.font = `700 ${fontSize}px Arial`;
+  ctx.font = `700 ${fontSize}px "Century Gothic", "CenturyGothic", Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(it.letter, it.x, it.y);
@@ -693,7 +772,7 @@ function nextTargetLetter(){
 
   targetLetter = next;
   remainingHits = requiredHits;
-  updateCoachLetter();
+  updateCoachLetter(true);
 }
 
 /* update en draw */
@@ -753,6 +832,12 @@ function update(dt){
       } else {
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
+
+        /* bij fout gaat er één rondje weg */
+        if(remainingHits < requiredHits){
+          remainingHits = Math.min(requiredHits, remainingHits + 1);
+          updateProgressDots();
+        }
       }
 
       energy = Math.min(140, energy + 10);
@@ -798,7 +883,7 @@ canvas.addEventListener("pointerdown", (e)=>{
 });
 
 /* start */
-updateCoachLetter();
+updateCoachLetter(true);
 requestAnimationFrame(loop);
 </script>
 
