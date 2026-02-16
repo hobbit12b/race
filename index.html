@@ -649,6 +649,28 @@ function onLevelCompleted(){
 let longPressTimer = null;
 const LONG_PRESS_MS = 850;
 
+/* 3x snel tikken als backup voor geheime menu */
+let tapCount = 0;
+let tapTimer = null;
+const TAP_WINDOW_MS = 520;
+
+function registerTap(){
+  tapCount++;
+  if(tapTimer) clearTimeout(tapTimer);
+
+  if(tapCount >= 3){
+    tapCount = 0;
+    if(tapTimer){ clearTimeout(tapTimer); tapTimer = null; }
+    openSettings();
+    return;
+  }
+
+  tapTimer = setTimeout(()=>{
+    tapCount = 0;
+    tapTimer = null;
+  }, TAP_WINDOW_MS);
+}
+
 function armLongPress(){
   disarmLongPress();
   longPressTimer = setTimeout(()=>{
@@ -664,13 +686,14 @@ function disarmLongPress(){
   }
 }
 
-/* iOS Safari: voorkom afbeeldingsmenu bij lang indrukken */
+/* voorkom browser menu */
 coachImgEl.addEventListener("contextmenu", (e)=> e.preventDefault());
 coachImgEl.addEventListener("selectstart", (e)=> e.preventDefault());
 
 coachImgEl.addEventListener("pointerdown", (e)=>{
   e.preventDefault();
   e.stopPropagation();
+  registerTap();
   armLongPress();
 });
 
@@ -681,6 +704,7 @@ coachImgEl.addEventListener("pointerleave", ()=> disarmLongPress());
 /* extra: touch events met passive:false zodat preventDefault werkt */
 coachImgEl.addEventListener("touchstart", (e)=>{
   e.preventDefault();
+  registerTap();
   armLongPress();
 }, { passive:false });
 
