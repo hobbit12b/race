@@ -7,12 +7,6 @@
 
 <style>
 
-
-
-
-
-
-
   html, body{ margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#111; font-family: Arial, sans-serif; touch-action:none; }
   canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
 
@@ -141,6 +135,7 @@
   .dot.filled{
     background: rgba(0,0,0,0.55);
   }
+
   /* Trofee animatie */
   #trophy{
     position:fixed;
@@ -156,6 +151,7 @@
     transform: translate(-50%, -50%) scale(1);
     will-change: transform, opacity;
   }
+
   /* Confetti */
   #confetti{
     position:fixed;
@@ -182,8 +178,6 @@
     100% { transform: translateY(120vh) rotate(520deg); opacity:0; }
   }
 
-
-
   /* Verborgen menu */
   #settingsOverlay{
     position:absolute;
@@ -191,7 +185,7 @@
     display:none;
     align-items:center;
     justify-content:center;
-    z-index:50;
+    z-index: 20000;
     background: rgba(0,0,0,0.55);
     backdrop-filter: blur(6px);
     touch-action: manipulation;
@@ -246,8 +240,6 @@
     text-transform: lowercase;
     cursor:pointer;
     user-select:none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
   }
   .letterChip input{ display:none; }
   .letterChip.on{
@@ -287,9 +279,6 @@
     color:#fff;
   }
 
-  
-
-
   #muteBtn{
     position: fixed;
     top: calc(12px + env(safe-area-inset-top));
@@ -314,6 +303,28 @@
   }
   #muteBtn:active{ transform: scale(0.98); }
 
+  #muteBtn::before,
+  #muteBtn::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:4px;
+    height:34px;
+    background: rgba(210,30,30,0.95);
+    border-radius: 3px;
+    transform-origin: center;
+    display:none;
+    pointer-events:none;
+  }
+  #muteBtn.muted::before{
+    display:block;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  #muteBtn.muted::after{
+    display:block;
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
 
   #coachWrap{
     position: fixed;
@@ -326,7 +337,6 @@
     pointer-events: auto;
   }
 
-
   /* positioneer coureur altijd rechtsboven */
   #coach{
     position: fixed !important;
@@ -336,7 +346,6 @@
     z-index: 9998 !important;
     pointer-events: auto !important;
   }
-
 
   /* COACH_RIGHT_FORCE */
   #coachWrap{
@@ -354,8 +363,6 @@
     pointer-events: auto !important;
   }
 
-
-  
   #toast{
     position: fixed;
     top: calc(68px + env(safe-area-inset-top));
@@ -377,7 +384,6 @@
     transform: translateY(0);
   }
 
-
   /* COACH_RIGHT_FORCE_V23 */
   #coach{
     position: fixed !important;
@@ -398,11 +404,10 @@
     right: calc(0px + env(safe-area-inset-right));
     width: 110px;
     height: 110px;
-        z-index: 10001;
+    z-index: 10001;
     background: rgba(0,0,0,0.0);
     pointer-events: auto;
   }
-
 
   /* FIX v23.1: coach altijd klikbaar */
   #coach{
@@ -422,7 +427,7 @@
 <body>
 
 <div id="coach" aria-hidden="true">
-<div id="speech">
+  <div id="speech">
     <span id="tagNew">nieuwe letter</span>
     <span id="coachLetter">a</span>
     <div id="progress"></div>
@@ -437,15 +442,17 @@
   <div id="settingsPanel">
     <h2>Instellingen</h2>
 
-    
     <div class="field">
       <label>Aangeboden letters</label>
       <div id="lettersGrid" style="display:grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap:8px;"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="btnAllOn" class="btnGhost" type="button" style="flex:1;">Alles aan</button>
+        <button id="btnAllOff" class="btnGhost" type="button" style="flex:1;">Alles uit</button>
+      </div>
       <div id="soundStatus" class="hint" style="margin-top:6px; font-weight:800; opacity:0.9;"></div>
       <div id="lastAudio" class="hint" style="margin-top:4px; font-weight:800; opacity:0.85;"></div>
       <div class="hint">Vink aan met welke letters je wilt spelen</div>
     </div>
-
 
     <div class="field">
       <label for="hitsInput">Aantal keer goed per letter</label>
@@ -461,7 +468,8 @@
       </select>
       <div class="hint">Rustig is fijner als het spel snel gaat</div>
     </div>
-<div class="field">
+
+    <div class="field">
       <label>Stemmen</label>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
         <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
@@ -487,17 +495,30 @@
 <div id="secretHotspot" aria-hidden="true"></div>
 
 <script>
-
-
-
-
-
-
-
-
-
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+
+const HAS_POINTER = ("PointerEvent" in window);
+
+function onPress(el, handler){
+  if(!el) return;
+  const opts = { passive:false };
+
+  const wrap = (e)=>{
+    if(e && e.cancelable) e.preventDefault();
+    if(e && typeof e.stopPropagation === "function") e.stopPropagation();
+    handler(e);
+  };
+
+  if(HAS_POINTER){
+    el.addEventListener("pointerdown", wrap, opts);
+  }else{
+    el.addEventListener("touchstart", wrap, opts);
+    el.addEventListener("mousedown", wrap, opts);
+  }
+
+  el.addEventListener("contextmenu", (e)=> e.preventDefault());
+}
 
 function toast(msg){
   const t = document.getElementById("toast");
@@ -509,20 +530,6 @@ function toast(msg){
 }
 
 canvas.style.touchAction = "none";
-
-const HAS_POINTER = ("PointerEvent" in window);
-function onPress(el, fn){
-  if(!el) return;
-  const opts = { passive:false };
-  if(HAS_POINTER){
-    el.addEventListener("pointerdown", fn, opts);
-  }else{
-    el.addEventListener("touchstart", fn, opts);
-    el.addEventListener("mousedown", fn, opts);
-  }
-}
-
-
 
 function resize(){
   const vw = window.visualViewport ? Math.round(window.visualViewport.width) : innerWidth;
@@ -536,9 +543,7 @@ if(window.visualViewport){
 }
 resize();
 
-/* ANTI_ZOOM_GUARD
-   voorkomt pinch zoom en dubbel tik zoom op Android en iOS
-*/
+/* ANTI_ZOOM_GUARD */
 document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
@@ -546,13 +551,10 @@ document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:fals
 let lastTouchEnd = 0;
 document.addEventListener("touchend", (e)=>{
   const now = Date.now();
-
-  // Als het docent menu open is, wil je juist snel kunnen tikken op letters
   if(settingsOverlay && settingsOverlay.style.display === "flex"){
     lastTouchEnd = now;
     return;
   }
-
   if(now - lastTouchEnd < 350){
     e.preventDefault();
   }
@@ -560,11 +562,9 @@ document.addEventListener("touchend", (e)=>{
 }, { passive:false });
 
 document.addEventListener("touchmove", (e)=>{
-  // geen scroll, geen pinch
   if(e.touches && e.touches.length > 1) e.preventDefault();
 }, { passive:false });
 
-// blokkeer ctrl plus wheel zoom (laptops)
 document.addEventListener("wheel", (e)=>{
   if(e.ctrlKey) e.preventDefault();
 }, { passive:false });
@@ -591,15 +591,13 @@ const lettersGrid = document.getElementById("lettersGrid");
 const hitsInput = document.getElementById("hitsInput");
 const btnSave = document.getElementById("saveSettings");
 const btnClose = document.getElementById("closeSettings");
+const btnAllOn = document.getElementById("btnAllOn");
+const btnAllOff = document.getElementById("btnAllOff");
 
-
-/* ===== Docent menu: open en sluit =====
-   Dit ontbrak in v23, daardoor gebeurde er niets bij triple tap of long press.
-*/
+/* ===== Docent menu: open en sluit ===== */
 function openSettings(){
   if(!settingsOverlay) return;
 
-  // vul UI met huidige waarden
   if(hitsInput) hitsInput.value = String(requiredHits || 5);
   if(typeof buildLettersGrid === "function") buildLettersGrid();
 
@@ -610,22 +608,24 @@ function openSettings(){
   if(speechModeEl) speechModeEl.value = speechMode;
 
   settingsOverlay.style.display = "flex";
+  const sh = document.getElementById("secretHotspot");
+  if(sh) sh.style.pointerEvents = "none";
   if(typeof toast === "function") toast("Docent menu");
 }
 
 function closeSettings(){
   if(!settingsOverlay) return;
   settingsOverlay.style.display = "none";
+  const sh = document.getElementById("secretHotspot");
+  if(sh) sh.style.pointerEvents = "auto";
 }
 
 if(settingsOverlay){
-  // klik buiten het paneel sluit
-  settingsOverlay.addEventListener("pointerdown", (e)=>{
+  settingsOverlay.addEventListener(HAS_POINTER ? "pointerdown" : "touchstart", (e)=>{
     if(e.target === settingsOverlay) closeSettings();
-  });
+  }, { passive:false });
 }
 
-// laptop: ESC sluit, Ctrl plus Alt plus S opent
 addEventListener("keydown", (e)=>{
   const k = (e.key || "").toLowerCase();
   if(k === "escape" && settingsOverlay && settingsOverlay.style.display === "flex"){
@@ -640,8 +640,6 @@ addEventListener("keydown", (e)=>{
 
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a + (b-a)*t; }
-
-/* fallback ellipse, voorkomt zwart scherm op sommige iPads */
 
 function roundRect(x,y,w,h,r){
   r = Math.max(0, Math.min(r, Math.min(w,h)/2));
@@ -667,51 +665,48 @@ function drawEllipse(x, y, rx, ry, rot = 0){
   ctx.restore();
 }
 
-
-/* ===== Geluid =====
-   Zet je mp3 bestanden in de map audio.
-   Het spel speelt alles via een wachtrij zodat er niets door elkaar praat.
-*/
+/* ===== Geluid ===== */
 let soundOn = true;
 const SOUND_KEY = "letter_race_sound_on_v1";
 const BGM_SRC = "audio/gamemusic.mp3";
 const BGM_MUTE_KEY = "letter_race_music_on_v1";
 let bgm = null;
 let musicOn = true;
-try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = false; }catch(e){}
 
-/* MUTE_BUTTON_BIND_V23: mute knop schakelt alleen muziek */
+/* MUTE_BUTTON_BIND_V24: mute knop blijft 🎵, bij uit komt er een rood kruis */
+function updateMuteBtnUi(){
+  const b = document.getElementById("muteBtn");
+  if(!b) return;
+  b.textContent = "🎵";
+  b.classList.toggle("muted", !musicOn);
+  b.setAttribute("aria-label", musicOn ? "Muziek aan" : "Muziek uit");
+}
+
 (function(){
   const muteBtn = document.getElementById("muteBtn");
   if(!muteBtn) return;
 
-  function applyIcon(){
-    muteBtn.textContent = musicOn ? "🎵" : "🔇";
-  }
-  applyIcon();
-
-  const toggle = (e)=>{
-    e.preventDefault();
-    e.stopPropagation();
+  const toggle = ()=>{
     unlockAudio();
 
     musicOn = !musicOn;
     try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
 
-    if(musicOn){ startBgm(); if(typeof toast==="function") toast("Muziek aan"); }
-    else { stopBgm(); if(typeof toast==="function") toast("Muziek uit"); }
+    if(musicOn){ startBgm(); toast("Muziek aan"); }
+    else { stopBgm(); toast("Muziek uit"); }
 
-    applyIcon();
+    updateMuteBtnUi();
   };
 
+  updateMuteBtnUi();
   onPress(muteBtn, toggle);
-  muteBtn.addEventListener("contextmenu", (e)=> e.preventDefault());
 })();
+
+try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = false; }catch(e){}
 
 const SPEECH_KEY = "letter_race_speech_mode_v1";
 let speechMode = "calm";
 try{ const raw = localStorage.getItem(SPEECH_KEY); if(raw === "full" || raw === "calm") speechMode = raw; }catch(e){}
-
 
 try{
   const raw = localStorage.getItem(SOUND_KEY);
@@ -722,6 +717,7 @@ const soundToggle = document.getElementById("soundToggle");
 const soundStatus = document.getElementById("soundStatus");
 const btnTestSound = document.getElementById("btnTestSound");
 const speechModeEl = document.getElementById("speechMode");
+
 if(speechModeEl){
   speechModeEl.value = speechMode;
   speechModeEl.addEventListener("change", ()=>{
@@ -730,11 +726,8 @@ if(speechModeEl){
   });
 }
 
-
 function syncMusicIcon(){
-  const b = document.getElementById("muteBtn");
-  if(!b) return;
-  b.textContent = musicOn ? "🎵" : "🔇";
+  updateMuteBtnUi();
 }
 
 function setSoundStatus(txt){
@@ -798,7 +791,7 @@ function startBgm(){
     if(bgm.paused){
       const p = bgm.play();
       if(p && typeof p.catch === "function"){
-                p.catch(()=>{});
+        p.catch(()=>{});
       }
     }
   }catch(e){}
@@ -812,12 +805,26 @@ function stopBgm(){
   }catch(e){}
 }
 
+function forceMusicOff(){
+  if(!musicOn) return;
+  musicOn = false;
+  try{ localStorage.setItem(BGM_MUTE_KEY, "0"); }catch(e){}
+  stopBgm();
+  updateMuteBtnUi();
+}
+
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden) forceMusicOff();
+});
+
+addEventListener("pagehide", ()=> forceMusicOff());
 
 function unlockAudio(){
   if(audioUnlocked) return;
   audioUnlocked = true;
   setSoundStatus(soundOn ? "Stemmen klaar" : "Stemmen staan uit");
   startBgm();
+  updateMuteBtnUi();
 }
 
 function beep(freq = 740, ms = 180, vol = 0.12){
@@ -946,12 +953,10 @@ function speakOpdracht(letter, attemptNumber = 1){
   stopAllAudio();
 
   if(speechMode === "calm"){
-    // rustig: opdracht + letter
     enqueue(randFrom(OPDRACHT), 1.0);
     return enqueue(letterAudio(letter), 1.0);
   }
 
-  // veel praten: met tellen 2 tot 5
   if(attemptNumber >= 2 && attemptNumber <= 5){
     enqueue(PREFIX_EN_NU_DE, 1.0);
     enqueue(TEL[attemptNumber], 1.0);
@@ -970,8 +975,6 @@ function speakGoed(letter){
   if(now - lastSpokenAt < 160) return;
   lastSpokenAt = now;
 
-  // na elk goed fragment altijd meteen de letter
-  // dit werkt in elke praatstand en op elk device
   enqueue(randFrom(GOED), 1.0);
   enqueue(letterAudio(letter), 1.0);
 }
@@ -1007,19 +1010,14 @@ if(btnTestSound){
     unlockAudio();
     if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
 
-
-
-    // eerst een piep, dan weet je zeker dat de browser audio toelaat
     stopAllAudio();
     await beep(820, 160, 0.14);
 
-    // daarna echte mp3 bestanden
     stopAllAudio();
     speakOpdracht(targetLetter, 1);
     enqueue(randFrom(GOED), 1.0);
   });
 }
-
 
 /* ===== Instelbare letters en doelherhaling ===== */
 const STORAGE_KEY = "letter_race_settings_v2";
@@ -1051,16 +1049,27 @@ function saveSettings(obj){
   }catch(e){}
 }
 
-
-
 /* ===== Letterkeuze via vinkjes ===== */
 const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
+
+const letterChipRefs = [];
+
+function setAllLetters(checked){
+  for(const ref of letterChipRefs){
+    ref.cb.checked = checked;
+    ref.sync();
+  }
+}
+
+if(btnAllOn) onPress(btnAllOn, ()=> setAllLetters(true));
+if(btnAllOff) onPress(btnAllOff, ()=> setAllLetters(false));
 
 function buildLettersGrid(){
   if(!lettersGrid) return;
 
   lettersGrid.innerHTML = "";
   lettersGrid.style.touchAction = "manipulation";
+  letterChipRefs.length = 0;
 
   for(const ch of DEFAULT_POOL){
     const lab = document.createElement("div");
@@ -1082,17 +1091,16 @@ function buildLettersGrid(){
       lab.setAttribute("aria-checked", cb.checked ? "true" : "false");
     };
 
-    const toggle = (e)=>{
-      // op iPad en Samsung is pointerdown betrouwbaarder dan click
-      if(e){ e.preventDefault(); e.stopPropagation(); }
+    const toggle = ()=>{
       cb.checked = !cb.checked;
       sync();
     };
 
-    // houd sync ook goed als iemand per ongeluk het input element triggert
     cb.addEventListener("change", sync);
 
     onPress(lab, toggle);
+
+    letterChipRefs.push({ cb, sync });
 
     lab.appendChild(cb);
     lab.appendChild(span);
@@ -1112,7 +1120,7 @@ function getCheckedLetters(){
   return out.length ? out : ["a"];
 }
 
-let allowedLetters = DEFAULT_POOL.slice();
+let allowedLetters = DEFAULT_POOL.filter(ch => !["c","x","y"].includes(ch));
 let requiredHits = 5;
 
 const saved = loadSettings();
@@ -1123,7 +1131,6 @@ if(saved){
   if(Number.isFinite(n)) requiredHits = clamp(Math.floor(n), 1, 20);
 }
 
-/* doelletter blijft, wisselt pas na requiredHits keer goed */
 let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
 let remainingHits = requiredHits;
 
@@ -1175,7 +1182,6 @@ function setCoachMood(mood, frames = 50){
   else coachImgEl.style.backgroundImage = "url(coureur1.png)";
 }
 
-
 /* ===== Confetti ===== */
 function spawnConfetti(){
   const confettiEl = document.getElementById("confetti");
@@ -1198,7 +1204,7 @@ function spawnConfetti(){
     p.style.height = h + "px";
     p.style.background = `hsl(${hue} 90% 60%)`;
     p.style.animationDelay = delay + "ms";
-    
+
     confettiEl.appendChild(p);
   }
 
@@ -1208,16 +1214,12 @@ function spawnConfetti(){
   }, 1250);
 }
 
-
-
-/* ===== Trofee animatie: groot midden, uitzoom naar coureur, dan nieuwe letter ===== */
+/* ===== Trofee animatie ===== */
 let trophyAnimating = false;
-let intermission = false; // pauze tussen letters bij level gehaald
-
+let intermission = false;
 
 function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
 function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
-
 
 function waitForImage(el){
   return new Promise((resolve)=>{
@@ -1245,9 +1247,9 @@ function playTrophyAnimation(onDone){
   const endX = r.left + r.width * 0.55;
   const endY = r.top + r.height * 0.50;
 
-  const phase0 = 60;   /* fade in */
-  const phase1 = 520;  /* feest bounce */
-  const phase2 = 980;  /* uitzoomen naar hoek */
+  const phase0 = 60;
+  const phase1 = 520;
+  const phase2 = 980;
   const startTime = performance.now();
 
   setTrophyPose(startX, startY, 1.60, 0.0, 0);
@@ -1297,12 +1299,9 @@ function playTrophyAnimation(onDone){
   });
 }
 
-
-
 async function onLevelCompleted(){
   intermission = true;
 
-  // haal resterende letters weg zodat het rustig blijft tijdens het feestje
   items.length = 0;
   spawnTimer = 0;
 
@@ -1312,26 +1311,19 @@ async function onLevelCompleted(){
   setCoachMood("trophy", 120);
 
   playTrophyAnimation(async ()=>{
-    // wacht eerst tot het level geluid klaar is
     try{ await Promise.resolve(levelAudio); }catch(e){}
 
-    // pas daarna nieuwe letter kiezen en opdracht afspelen
     setCoachMood("neutral", 0);
     try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
 
-    // nu pas weer letters laten vallen
     intermission = false;
   });
 }
 
-
-
-
-/* ===== Verborgen menu openen: 3 snelle tikken of lang indrukken ===== */
+/* ===== Verborgen menu openen ===== */
 let longPressTimer = null;
 const LONG_PRESS_MS = 650;
 
-/* 3x snel tikken */
 let tapCount = 0;
 let tapTimer = null;
 const TAP_WINDOW_MS = 520;
@@ -1373,33 +1365,24 @@ const secretHotspot = document.getElementById("secretHotspot");
 function bindSecretTriggers(el){
   if(!el) return;
 
-  el.addEventListener("contextmenu", (e)=> e.preventDefault());
   el.addEventListener("selectstart", (e)=> e.preventDefault());
 
-  onPress(el, (e)=>{
+  onPress(el, ()=>{
     unlockAudio();
-    // niet overal preventDefault: alleen als menu dicht is, zo blijft scrollen elders normaal
     if(!(settingsOverlay && settingsOverlay.style.display === "flex")){
-      e.preventDefault();
-      e.stopPropagation();
+      registerTap();
+      armLongPress();
     }
-    registerTap();
-    armLongPress();
   });
 
   el.addEventListener("pointerup", ()=> disarmLongPress());
   el.addEventListener("pointercancel", ()=> disarmLongPress());
   el.addEventListener("pointerleave", ()=> disarmLongPress());
-  el.addEventListener("touchend", ()=> disarmLongPress(), { passive:true });
-  el.addEventListener("touchcancel", ()=> disarmLongPress(), { passive:true });
 }
 
-// op de coureur (speech + plaatje) én op een onzichtbare hotspot rechtsboven
 bindSecretTriggers(document.getElementById("coach"));
 bindSecretTriggers(coachImgEl);
 bindSecretTriggers(secretHotspot);
-coachImgEl.addEventListener("pointercancel", ()=> disarmLongPress());
-coachImgEl.addEventListener("pointerleave", ()=> disarmLongPress());
 
 btnClose.addEventListener("click", ()=> closeSettings());
 
@@ -1425,10 +1408,8 @@ btnSave.addEventListener("click", ()=>{
 let energy = 100;
 let roadScroll = 0;
 
-/* wereldtempo blijft constant */
 const WORLD_TEMPO = 1.0;
 
-/* lettertempo verandert wel */
 let letterTempo = 1.20;
 const LETTER_TEMPO_MIN = 1.20;
 const LETTER_TEMPO_MAX = 3.00;
@@ -1438,7 +1419,6 @@ const SPEED_DOWN = 0.10;
 
 const state = { lane: 1, lastTime: performance.now() };
 
-/* auto */
 const car = {
   x: canvas.width/2,
   y: canvas.height * 0.88,
@@ -1449,12 +1429,10 @@ const car = {
   scale: 1.20
 };
 
-/* letters */
 const items = [];
 const MAX_ITEMS = 2;
 const SPAWN_FRAMES_BASE = 170;
 
-/* weg geometrie */
 function roadWidthAt(y){
   const t = clamp(y / canvas.height, 0, 1);
   return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
@@ -1475,7 +1453,7 @@ function laneX(lane, y){
   return e.left + laneW * (lane + 0.5);
 }
 
-/* bomen, vaste instellingen */
+/* bomen */
 const trees = [];
 const MAX_TREES = 4;
 const TREE_SPAWN_FRAMES_BASE = 240;
@@ -1578,7 +1556,7 @@ function drawGrass(){
   }
 }
 
-/* weg met stabiele middenstrepen */
+/* weg */
 function drawRoad(){
   const pts = [];
   for(let y=0; y<=canvas.height+28; y+=28){
@@ -1598,7 +1576,7 @@ function drawRoad(){
     const p1 = pts[i];
     const p2 = pts[i+1];
     const t = clamp(p1.y / canvas.height, 0, 1);
-    
+
     const bandW = 3 + t * 22;
     const offset = bandW * 0.75;
 
@@ -1668,12 +1646,35 @@ function drawRoad(){
 }
 
 /* letters */
+function mix(a, b, t){ return Math.round(a + (b - a) * t); }
+
+function targetBgRgba(){
+  const blue = { r:170, g:225, b:255 };
+  const yellow = { r:255, g:220, b:120 };
+  const alpha = 0.95;
+
+  const steps = Math.min(Math.max(requiredHits - 1, 0), 3);
+  if(steps === 0){
+    return `rgba(${yellow.r},${yellow.g},${yellow.b},${alpha})`;
+  }
+
+  const stage = clamp(requiredHits - remainingHits, 0, steps);
+  const t = stage / steps;
+
+  const r = mix(blue.r, yellow.r, t);
+  const g = mix(blue.g, yellow.g, t);
+  const b = mix(blue.b, yellow.b, t);
+
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function drawItem(it){
   const t = clamp(it.y / canvas.height, 0, 1);
   const size = 26 + t * 125;
   const fontSize = Math.floor(14 + t * 58);
 
-  ctx.fillStyle = it.isTarget ? "rgba(170,225,255,0.95)" : "rgba(255,220,120,0.95)";
+  const other = "rgba(255,220,120,0.95)";
+  ctx.fillStyle = it.isTarget ? targetBgRgba() : other;
   ctx.fillRect(it.x - size/2, it.y - size/2, size, size);
 
   ctx.fillStyle = "#111";
@@ -1712,7 +1713,6 @@ function spawnLetter(){
 
 let spawnTimer = 0;
 
-/* auto tekenen */
 function chooseCarSprite(){
   if(car.steerDx < -18) return carLeft;
   if(car.steerDx > 18) return carRight;
@@ -1741,7 +1741,6 @@ function drawCar(){
   if(img.complete && img.naturalWidth){
     ctx.drawImage(img, -w/2, -h/2, w, h);
   } else {
-    /* fallback car: altijd zichtbaar, ook als png ontbreekt */
     ctx.fillStyle = "rgba(255,255,255,0.92)";
     const r = Math.max(10, Math.min(22, w * 0.08));
     roundRect(-w/2, -h/2, w, h, r);
@@ -1752,14 +1751,12 @@ function drawCar(){
     ctx.stroke();
 
     ctx.fillStyle = "rgba(0,0,0,0.18)";
-    // raam
     roundRect(-w*0.20, -h*0.22, w*0.40, h*0.26, r*0.6);
     ctx.fill();
   }
   ctx.restore();
 }
 
-/* ===== doelwissel op basis van aantal keer goed ===== */
 function nextTargetLetter(){
   if(!allowedLetters.length) allowedLetters = ["a"];
 
@@ -1777,22 +1774,19 @@ function nextTargetLetter(){
   targetLetter = next;
   remainingHits = requiredHits;
   updateCoachLetter(true);
-return speakOpdracht(targetLetter, 1);
-  }
+  return speakOpdracht(targetLetter, 1);
+}
 
 /* update en draw */
 function update(dt){
-  /* mood terug naar neutraal */
   if(coachMoodTimer > 0){
     coachMoodTimer -= dt;
     if(coachMoodTimer <= 0){
-      /* trophy mood blijft even staan tot animatie klaar is */
       if(!trophyAnimating) setCoachMood("neutral", 0);
     }
   }
 
   if(intermission){
-    // laat de wereld rustig doorrollen, maar geen nieuwe letters, geen botsingen
     roadScroll += (9.2 * WORLD_TEMPO) * dt;
     updateTrees(dt);
     return;
@@ -1842,7 +1836,6 @@ function update(dt){
         setCoachMood("sad", 65);
         letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
         speakFout(targetLetter);
-        /* bij fout gaat er één rondje weg */
         if(remainingHits < requiredHits){
           remainingHits = Math.min(requiredHits, remainingHits + 1);
           updateProgressDots();
@@ -1881,8 +1874,6 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
-
-/* KEYBOARD_LANES_V23 */
 addEventListener("keydown", (e)=>{
   if(e.key === "ArrowLeft"){
     e.preventDefault();
@@ -1893,8 +1884,6 @@ addEventListener("keydown", (e)=>{
   }
 });
 
-
-/* besturing */
 canvas.addEventListener("pointerdown", (e)=>{
   unlockAudio();
   startBgm();
@@ -1907,38 +1896,20 @@ canvas.addEventListener("pointerdown", (e)=>{
   else state.lane = 2;
 });
 
-
-
-/* context menu blokkeren op coureur */
 document.addEventListener("contextmenu", (e)=>{
   const coachImg = document.getElementById("coachImg");
   if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
 }, { capture:true });
 
-/* zoom blokkeren */
 document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
 document.addEventListener("wheel", (e)=>{ if(e.ctrlKey) e.preventDefault(); }, { passive:false });
 
-/* start */
 updateCoachLetter(true);
-  stopAllAudio();
-  speakOpdracht(targetLetter, 1);
+stopAllAudio();
+speakOpdracht(targetLetter, 1);
 requestAnimationFrame(loop);
-
-
-
-
-
-
-
-
-
-
-
-
-
 </script>
 
 </body>
