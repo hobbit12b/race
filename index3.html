@@ -1,0 +1,2137 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Letter Race</title>
+
+<style>
+  :root{ --safe-bottom: env(safe-area-inset-bottom); }
+
+  html, body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#111;
+    font-family: Arial, sans-serif;
+    touch-action:none;
+    overscroll-behavior: none;
+  }
+  canvas{ display:block; position:fixed; inset:0; width:100vw; height:100vh; }
+
+  /* Coureur rechtsboven */
+  #coach{
+    position:absolute;
+    position: relative;
+    top:10px;
+    right:10px;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    z-index:10;
+  }
+  #coachImg{
+    width:min(180px, 26vw);
+    aspect-ratio: 1 / 1.08;
+    background-image: url("coureur1.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,0.35));
+    pointer-events:auto;
+    touch-action: none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ballon met letter en voortgang */
+  #speech{
+    position:relative;
+    margin-top:8px;
+    background: rgba(255,255,255,0.96);
+    color:#111;
+    border-radius:18px;
+    padding:10px 14px 10px 14px;
+    box-shadow:0 10px 18px rgba(0,0,0,0.25);
+    min-width:84px;
+    text-align:center;
+    transform-origin: 85% 30%;
+  }
+  #speech::after{
+    content:"";
+    position:absolute;
+    right:-10px;
+    top:18px;
+    width:0; height:0;
+    border-left: 12px solid rgba(255,255,255,0.96);
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+  }
+
+  /* visuele "nieuwe letter" highlight */
+  #speech.change{
+    animation: speechPop 520ms ease;
+    outline: 4px solid rgba(255,210,80,0.92);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.30), 0 0 0 10px rgba(255,210,80,0.18);
+  }
+  @keyframes speechPop{
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.10) rotate(-1deg); }
+    60%  { transform: scale(0.98) rotate(1deg); }
+    100% { transform: scale(1); }
+  }
+
+  #coachLetter{
+    display:block;
+    font-weight:900;
+    font-size: clamp(24px, 5.0vw, 48px);
+    line-height:1;
+    text-transform:lowercase;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    letter-spacing: 0.02em;
+  }
+  #coachLetter.change{
+    animation: letterBounce 600ms ease;
+  }
+  @keyframes letterBounce{
+    0%   { transform: scale(1); }
+    30%  { transform: scale(1.26); }
+    55%  { transform: scale(0.92); }
+    80%  { transform: scale(1.10); }
+    100% { transform: scale(1); }
+  }
+
+  #tagNew{
+    position:absolute;
+    left:50%;
+    top:-12px;
+    transform: translateX(-50%);
+    background: rgba(255,210,80,0.98);
+    color:#111;
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:900;
+    font-size:12px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+    opacity:0;
+    pointer-events:none;
+  }
+  #tagNew.show{
+    animation: tagSlide 720ms ease;
+  }
+  @keyframes tagSlide{
+    0%   { opacity:0; transform: translateX(-50%) translateY(6px) scale(0.96); }
+    25%  { opacity:1; transform: translateX(-50%) translateY(0px) scale(1.02); }
+    70%  { opacity:1; transform: translateX(-50%) translateY(0px) scale(1.02); }
+    100% { opacity:0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+  }
+
+  #progress{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin-top:8px;
+  }
+  .dot{
+    width:10px;
+    height:10px;
+    border-radius:999px;
+    background: rgba(0,0,0,0.12);
+  }
+  .dot.filled{
+    background: rgba(0,0,0,0.55);
+  }
+
+  /* Trofee animatie */
+  #trophy{
+    position:fixed;
+    left:0;
+    top:0;
+    display:none;
+    z-index:40;
+    width:min(560px, 78vw);
+    height:auto;
+    pointer-events:none;
+    opacity:0;
+    filter: drop-shadow(0 18px 30px rgba(0,0,0,0.38));
+    transform: translate(-50%, -50%) scale(1);
+    will-change: transform, opacity;
+  }
+
+  /* Confetti */
+  #confetti{
+    position:fixed;
+    inset:0;
+    z-index:35;
+    pointer-events:none;
+    display:none;
+    overflow:hidden;
+  }
+  .confettiPiece{
+    position:absolute;
+    top:-12vh;
+    width:10px;
+    height:16px;
+    border-radius:4px;
+    opacity:0.95;
+    transform: rotate(0deg);
+    animation: confettiFall 1150ms ease-in forwards;
+    will-change: transform, top, opacity;
+  }
+  @keyframes confettiFall{
+    0%   { transform: translateY(0) rotate(0deg); opacity:0; }
+    10%  { opacity:1; }
+    100% { transform: translateY(120vh) rotate(520deg); opacity:0; }
+  }
+
+  /* Verborgen menu */
+  #settingsOverlay{
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index: 20000;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px);
+    touch-action: manipulation;
+    padding:
+      calc(12px + env(safe-area-inset-top))
+      calc(12px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom))
+      calc(12px + env(safe-area-inset-left));
+    box-sizing: border-box;
+  }
+
+  #settingsPanel{
+    width:min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow:auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius:18px;
+    touch-action: manipulation;
+    background: rgba(255,255,255,0.96);
+    box-shadow:0 18px 40px rgba(0,0,0,0.35);
+    padding:16px 16px 14px 16px;
+    box-sizing: border-box;
+  }
+
+  #settingsPanel h2{
+    margin:0 0 12px 0;
+    font-size:18px;
+    color:#111;
+  }
+
+  .settingsColumns{
+    display:block;
+  }
+  .settingsCol{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .field{
+    display:grid;
+    gap:6px;
+    margin:0;
+  }
+
+  label{
+    font-size:13px;
+    color:#222;
+    font-weight:700;
+  }
+  input{
+    width:100%;
+    box-sizing:border-box;
+    border-radius:12px;
+    border:2px solid rgba(0,0,0,0.12);
+    padding:10px 12px;
+    font-size:16px;
+    outline:none;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    font-weight: 700;
+  }
+  input:focus{
+    border-color: rgba(0,0,0,0.28);
+  }
+  input[type=range]{
+    padding:0;
+    border:0;
+    height:36px;
+    background: transparent;
+  }
+  input[type=range]:focus{
+    outline:none;
+  }
+
+  #lettersGrid{
+    display:grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap:8px;
+  }
+
+  .letterChip{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:12px;
+    border:2px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.85);
+    padding:10px 8px;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+    font-weight: 800;
+    text-transform: lowercase;
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .letterChip input{ display:none; }
+  .letterChip.on{
+    border-color: rgba(0,0,0,0.35);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.10);
+  }
+  .letterChip.off{
+    opacity:0.45;
+  }
+
+  .hint{
+    font-size:12px;
+    color: rgba(0,0,0,0.65);
+    line-height:1.35;
+  }
+  .btnRow{
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+    margin-top:12px;
+  }
+  button{
+    border:0;
+    border-radius:14px;
+    padding:10px 14px;
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+    font-family: "Century Gothic", "CenturyGothic", Arial, sans-serif;
+  }
+  .btnGhost{
+    background: rgba(0,0,0,0.08);
+    color:#111;
+  }
+  .btnPrimary{
+    background:#111;
+    color:#fff;
+  }
+
+  /* Landscape: links en rechts, alles in beeld, geen scroll */
+  @media (orientation: landscape){
+    #settingsPanel{
+      width:min(980px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      overflow:hidden;
+      padding:12px 12px 10px 12px;
+    }
+    #settingsPanel h2{
+      font-size:16px;
+      margin:0 0 8px 0;
+    }
+    .settingsColumns{
+      display:grid;
+      grid-template-columns: 1.25fr 0.85fr;
+      gap:12px;
+      align-items:start;
+    }
+    .settingsCol{
+      gap:10px;
+    }
+    #lettersGrid{
+      grid-template-columns: repeat(13, minmax(0, 1fr));
+      gap:6px;
+    }
+    .letterChip{
+      padding:7px 0;
+      border-radius:10px;
+    }
+    label{ font-size:12px; }
+    input{
+      padding:8px 10px;
+      font-size:15px;
+      border-radius:12px;
+    }
+    select{
+      padding:10px 10px !important;
+      border-radius:12px !important;
+      font-size:15px;
+    }
+    .btnRow{
+      margin-top:10px;
+    }
+    button{
+      padding:9px 12px;
+      font-size:14px;
+      border-radius:14px;
+    }
+    .hint{
+      font-size:11px;
+      line-height:1.25;
+    }
+  }
+
+  #muteBtn{
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    right: auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    border: 0;
+    background: rgba(255,255,255,0.88);
+    box-shadow: 0 10px 18px rgba(0,0,0,0.20);
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    z-index: 9999;
+  }
+  #muteBtn:active{ transform: scale(0.98); }
+
+  #muteBtn::before,
+  #muteBtn::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:4px;
+    height:34px;
+    background: rgba(210,30,30,0.95);
+    border-radius: 3px;
+    transform-origin: center;
+    display:none;
+    pointer-events:none;
+  }
+  #muteBtn.muted::before{
+    display:block;
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+  #muteBtn.muted::after{
+    display:block;
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  #coachWrap{
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(12px + env(safe-area-inset-right));
+    z-index: 9998;
+    pointer-events: auto;
+  }
+  #coach{
+    pointer-events: auto;
+  }
+
+  /* positioneer coureur altijd rechtsboven */
+  #coach{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    z-index: 9998 !important;
+    pointer-events: auto !important;
+  }
+
+  /* COACH_RIGHT_FORCE */
+  #coachWrap{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    z-index: 9998 !important;
+    pointer-events: none !important;
+  }
+  #coach{
+    position: relative !important;
+    right: auto !important;
+    left: auto !important;
+    pointer-events: auto !important;
+  }
+
+  #toast{
+    position: fixed;
+    top: calc(68px + env(safe-area-inset-top));
+    left: calc(12px + env(safe-area-inset-left));
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-weight: 800;
+    font-size: 14px;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+  }
+  #toast.show{
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* COACH_RIGHT_FORCE_V23 */
+  #coach{
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 9998 !important;
+    pointer-events: auto !important;
+  }
+
+  #coachImg{ pointer-events: auto; }
+  #speech{ pointer-events: auto; }
+
+  #secretHotspot{
+    position: fixed;
+    top: calc(0px + env(safe-area-inset-top));
+    right: calc(0px + env(safe-area-inset-right));
+    width: 110px;
+    height: 110px;
+    z-index: 10001;
+    background: rgba(0,0,0,0.0);
+    pointer-events: auto;
+  }
+
+  /* FIX v23.1: coach altijd klikbaar */
+  #coach{
+    pointer-events: auto !important;
+    position: fixed !important;
+    top: calc(12px + env(safe-area-inset-top)) !important;
+    right: calc(12px + env(safe-area-inset-right)) !important;
+    left: auto !important;
+    bottom: auto !important;
+    z-index: 9998 !important;
+  }
+  #coach *{ pointer-events: auto !important; }
+
+</style>
+</head>
+
+<body>
+
+<div id="coach" aria-hidden="true">
+  <div id="speech">
+    <span id="tagNew">nieuwe letter</span>
+    <span id="coachLetter">a</span>
+    <div id="progress"></div>
+  </div>
+  <div id="coachImg" aria-hidden="true"></div>
+</div>
+
+<div id="confetti"></div>
+<img id="trophy" src="coureur_beker.png" alt="" />
+
+<div id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Instellingen">
+  <div id="settingsPanel">
+    <h2>Instellingen</h2>
+
+    <div class="settingsColumns">
+      <div class="settingsCol" id="settingsLeft">
+
+        <div class="field">
+          <label>Aangeboden letters</label>
+          <div id="lettersGrid"></div>
+
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button id="btnAllOn" class="btnGhost" type="button" style="flex:1;">Alles aan</button>
+            <button id="btnAllOff" class="btnGhost" type="button" style="flex:1;">Alles uit</button>
+          </div>
+
+          <div id="soundStatus" class="hint" style="margin-top:6px; font-weight:800; opacity:0.9;"></div>
+          <div id="lastAudio" class="hint" style="margin-top:4px; font-weight:800; opacity:0.85;"></div>
+          <div class="hint">Vink aan met welke letters je wilt spelen</div>
+        </div>
+
+      </div>
+
+      <div class="settingsCol" id="settingsRight">
+
+        <div class="field">
+          <label for="speedSlider">Lettersnelheid</label>
+          <input id="speedSlider" type="range" min="55" max="100" step="5" />
+          <div id="speedHint" class="hint" style="font-weight:800; opacity:0.9;"></div>
+          <div class="hint">100% is normaal, lager is rustiger</div>
+        </div>
+
+        <div class="field">
+          <label for="hitsInput">Aantal keer goed per letter</label>
+          <input id="hitsInput" type="number" min="1" max="20" inputmode="numeric" />
+          <div class="hint">Bijvoorbeeld 5, pas daarna kiest het spel een nieuwe letter</div>
+        </div>
+
+        <div class="field">
+          <label>Spraak</label>
+          <select id="speechMode" style="width:100%; padding:12px 12px; border-radius:12px; border:2px solid rgba(0,0,0,0.12); font-weight:800;">
+            <option value="calm">Rustig, bijhouden</option>
+            <option value="full">Veel praten</option>
+          </select>
+          <div class="hint">Rustig is fijner als het spel snel gaat</div>
+        </div>
+
+        <div class="field">
+          <label>Stemmen</label>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <label style="display:flex; align-items:center; gap:10px; font-weight:800; color:#111;">
+              <input id="soundToggle" type="checkbox" style="width:22px; height:22px;" />
+              Aan
+            </label>
+            <button id="btnTestSound" class="btn secondary" type="button">Test</button>
+          </div>
+          <div class="hint">Test werkt pas nadat je 1x het scherm hebt aangeraakt</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="btnRow">
+      <button class="btnGhost" id="closeSettings">Sluiten</button>
+      <button class="btnPrimary" id="saveSettings">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="game"></canvas>
+<div id="toast"></div>
+
+<button id="muteBtn" aria-label="Muziek aan of uit" type="button">🎵</button>
+<div id="secretHotspot" aria-hidden="true"></div>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const HAS_POINTER = ("PointerEvent" in window);
+
+function onPress(el, handler){
+  if(!el) return;
+  const opts = { passive:false };
+
+  const wrap = (e)=>{
+    if(e && e.cancelable) e.preventDefault();
+    if(e && typeof e.stopPropagation === "function") e.stopPropagation();
+    handler(e);
+  };
+
+  if(HAS_POINTER){
+    el.addEventListener("pointerdown", wrap, opts);
+  }else{
+    el.addEventListener("touchstart", wrap, opts);
+    el.addEventListener("mousedown", wrap, opts);
+  }
+
+  el.addEventListener("contextmenu", (e)=> e.preventDefault());
+}
+
+function toast(msg){
+  const t = document.getElementById("toast");
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._tm);
+  toast._tm = setTimeout(()=> t.classList.remove("show"), 900);
+}
+
+canvas.style.touchAction = "none";
+
+/* extra zoom blokkade */
+document.addEventListener("dblclick", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("touchstart", (e)=>{
+  if(e.touches && e.touches.length > 1) e.preventDefault();
+}, { passive:false });
+
+let needCarResync = true;
+
+function resize(){
+  const vw = window.visualViewport ? Math.round(window.visualViewport.width) : innerWidth;
+  const vh = window.visualViewport ? Math.round(window.visualViewport.height) : innerHeight;
+  canvas.width = vw;
+  canvas.height = vh;
+  needCarResync = true;
+}
+addEventListener("resize", resize);
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", resize);
+}
+resize();
+
+/* ANTI_ZOOM_GUARD */
+document.addEventListener("gesturestart", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gesturechange", (e)=> e.preventDefault(), { passive:false });
+document.addEventListener("gestureend", (e)=> e.preventDefault(), { passive:false });
+
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e)=>{
+  const now = Date.now();
+
+  if(settingsOverlay && settingsOverlay.style.display === "flex"){
+    lastTouchEnd = now;
+    return;
+  }
+
+  if(now - lastTouchEnd < 350){
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive:false });
+
+/* blokkeer scroll en zoom, maar laat docent menu netjes werken */
+document.addEventListener("touchmove", (e)=>{
+  if(settingsOverlay && settingsOverlay.style.display === "flex") return;
+  if(e.touches && e.touches.length > 1) e.preventDefault();
+  else e.preventDefault();
+}, { passive:false });
+
+document.addEventListener("wheel", (e)=>{
+  if(e.ctrlKey) e.preventDefault();
+}, { passive:false });
+
+function loadImg(src){ const img = new Image(); img.src = src; return img; }
+const carStraight = loadImg("car_straight.png");
+const carLeft = loadImg("car_left.png");
+const carRight = loadImg("car_right.png");
+const treeImg = loadImg("tree.png");
+
+const coachNeutral = loadImg("coureur1.png");
+const coachHappy   = loadImg("coureur_blij.png");
+const coachSad     = loadImg("coureur_sip.png");
+
+const coachImgEl = document.getElementById("coachImg");
+const uiCoachLetter = document.getElementById("coachLetter");
+const uiProgress = document.getElementById("progress");
+const uiSpeech = document.getElementById("speech");
+const uiTagNew = document.getElementById("tagNew");
+const trophyEl = document.getElementById("trophy");
+
+const settingsOverlay = document.getElementById("settingsOverlay");
+const lettersGrid = document.getElementById("lettersGrid");
+const hitsInput = document.getElementById("hitsInput");
+const btnSave = document.getElementById("saveSettings");
+const btnClose = document.getElementById("closeSettings");
+const btnAllOn = document.getElementById("btnAllOn");
+const btnAllOff = document.getElementById("btnAllOff");
+
+/* ===== Docent menu: open en sluit ===== */
+function openSettings(){
+  if(!settingsOverlay) return;
+
+  if(hitsInput) hitsInput.value = String(requiredHits || 5);
+  if(typeof buildLettersGrid === "function") buildLettersGrid();
+
+  if(soundToggle) soundToggle.checked = !!soundOn;
+  if(typeof setSoundStatus === "function"){
+    setSoundStatus(soundOn ? "Stemmen staan aan" : "Stemmen staan uit");
+  }
+  if(speechModeEl) speechModeEl.value = speechMode;
+
+  if(speedSlider){
+    speedSlider.value = String(Math.round(speedFactor * 100));
+    updateSpeedUi();
+  }
+
+  settingsOverlay.style.display = "flex";
+  const sh = document.getElementById("secretHotspot");
+  if(sh) sh.style.pointerEvents = "none";
+  if(typeof toast === "function") toast("Docent menu");
+}
+
+function closeSettings(){
+  if(!settingsOverlay) return;
+  settingsOverlay.style.display = "none";
+  const sh = document.getElementById("secretHotspot");
+  if(sh) sh.style.pointerEvents = "auto";
+}
+
+if(settingsOverlay){
+  const evt = HAS_POINTER ? "pointerdown" : "touchstart";
+  settingsOverlay.addEventListener(evt, (e)=>{
+    if(e.target === settingsOverlay) closeSettings();
+  }, { passive:false });
+}
+
+addEventListener("keydown", (e)=>{
+  const k = (e.key || "").toLowerCase();
+  if(k === "escape" && settingsOverlay && settingsOverlay.style.display === "flex"){
+    e.preventDefault();
+    closeSettings();
+  }
+  if((e.ctrlKey || e.metaKey) && e.altKey && k === "s"){
+    e.preventDefault();
+    openSettings();
+  }
+});
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function roundRect(x,y,w,h,r){
+  r = Math.max(0, Math.min(r, Math.min(w,h)/2));
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+function drawEllipse(x, y, rx, ry, rot = 0){
+  if (ctx.ellipse){
+    ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2);
+    return;
+  }
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(rx, ry);
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.restore();
+}
+
+/* ===== Geluid ===== */
+let soundOn = true;
+const SOUND_KEY = "letter_race_sound_on_v1";
+const BGM_SRC = "audio/gamemusic.mp3";
+const BGM_MUTE_KEY = "letter_race_music_on_v1";
+let bgm = null;
+let musicOn = true;
+
+function updateMuteBtnUi(){
+  const b = document.getElementById("muteBtn");
+  if(!b) return;
+  b.textContent = "🎵";
+  b.classList.toggle("muted", !musicOn);
+  b.setAttribute("aria-label", musicOn ? "Muziek aan" : "Muziek uit");
+}
+
+(function(){
+  const muteBtn = document.getElementById("muteBtn");
+  if(!muteBtn) return;
+
+  const toggle = ()=>{
+    unlockAudio();
+
+    musicOn = !musicOn;
+    try{ localStorage.setItem(BGM_MUTE_KEY, musicOn ? "1" : "0"); }catch(e){}
+
+    if(musicOn){ startBgm(); if(typeof toast==="function") toast("Muziek aan"); }
+    else { stopBgm(); if(typeof toast==="function") toast("Muziek uit"); }
+
+    updateMuteBtnUi();
+  };
+
+  updateMuteBtnUi();
+  onPress(muteBtn, toggle);
+})();
+
+try{ const raw = localStorage.getItem(BGM_MUTE_KEY); if(raw === "0") musicOn = false; }catch(e){}
+
+const SPEECH_KEY = "letter_race_speech_mode_v1";
+let speechMode = "calm";
+try{ const raw = localStorage.getItem(SPEECH_KEY); if(raw === "full" || raw === "calm") speechMode = raw; }catch(e){}
+
+try{
+  const raw = localStorage.getItem(SOUND_KEY);
+  if(raw === "0") soundOn = false;
+}catch(e){}
+
+const soundToggle = document.getElementById("soundToggle");
+const soundStatus = document.getElementById("soundStatus");
+const btnTestSound = document.getElementById("btnTestSound");
+const speechModeEl = document.getElementById("speechMode");
+
+if(speechModeEl){
+  speechModeEl.value = speechMode;
+  speechModeEl.addEventListener("change", ()=>{
+    speechMode = speechModeEl.value === "full" ? "full" : "calm";
+    try{ localStorage.setItem(SPEECH_KEY, speechMode); }catch(e){}
+  });
+}
+
+function setSoundStatus(txt){
+  if(soundStatus) soundStatus.textContent = txt || "";
+}
+
+function setLastAudio(txt){
+  const el = document.getElementById("lastAudio");
+  if(el) el.textContent = txt || "";
+}
+
+if(soundToggle){
+  soundToggle.checked = !!soundOn;
+  soundToggle.addEventListener("change", ()=>{
+    soundOn = soundToggle.checked;
+    try{ localStorage.setItem(SOUND_KEY, soundOn ? "1" : "0"); }catch(e){}
+
+    if(soundOn){
+      setSoundStatus("Stemmen staan aan");
+    }else{
+      stopAllAudio();
+      setSoundStatus("Stemmen staan uit");
+    }
+  });
+}
+
+let audioUnlocked = false;
+let audioQueue = Promise.resolve();
+
+let queueToken = 0;
+let currentAudio = null;
+let lastSpokenAt = 0;
+
+function stopAllAudio(){
+  queueToken++;
+  try{
+    if(currentAudio){
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+  }catch(e){}
+  currentAudio = null;
+  audioQueue = Promise.resolve();
+}
+
+function ensureBgm(){
+  if(!bgm){
+    bgm = new Audio(BGM_SRC);
+    bgm.loop = true;
+    bgm.preload = "auto";
+    bgm.playsInline = true;
+    bgm.volume = 0.22;
+  }
+}
+
+function startBgm(){
+  if(!musicOn) return;
+  ensureBgm();
+
+  try{
+    if(bgm.paused){
+      const p = bgm.play();
+      if(p && typeof p.catch === "function"){
+        p.catch(()=>{});
+      }
+    }
+  }catch(e){}
+}
+
+function stopBgm(){
+  ensureBgm();
+  try{
+    bgm.pause();
+    bgm.currentTime = 0;
+  }catch(e){}
+}
+
+function forceMusicOff(){
+  if(!musicOn) return;
+  musicOn = false;
+  try{ localStorage.setItem(BGM_MUTE_KEY, "0"); }catch(e){}
+  stopBgm();
+  updateMuteBtnUi();
+}
+
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden) forceMusicOff();
+});
+
+addEventListener("pagehide", ()=> forceMusicOff());
+
+function unlockAudio(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  setSoundStatus(soundOn ? "Stemmen klaar" : "Stemmen staan uit");
+  startBgm();
+  updateMuteBtnUi();
+}
+
+function beep(freq = 740, ms = 180, vol = 0.12){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return Promise.resolve();
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    return new Promise((resolve)=>{
+      setTimeout(()=>{
+        o.stop();
+        ctx.close().catch(()=>{});
+        resolve();
+      }, ms);
+    });
+  }catch(e){
+    return Promise.resolve();
+  }
+}
+
+function playClip(src, vol = 1.0){
+  const myToken = queueToken;
+
+  return new Promise((resolve)=>{
+    if(!soundOn){ resolve(); return; }
+    if(myToken !== queueToken){ resolve(); return; }
+
+    setLastAudio("Laatste audio: " + src);
+    const a = new Audio(src);
+    currentAudio = a;
+
+    a.preload = "auto";
+    a.playsInline = true;
+    a.volume = vol;
+
+    const done = ()=>{
+      a.removeEventListener("ended", done);
+      a.removeEventListener("error", onErr);
+      if(currentAudio === a) currentAudio = null;
+      resolve();
+    };
+
+    const onErr = ()=>{
+      setSoundStatus("Bestand niet gevonden, check pad");
+      setLastAudio("Niet gevonden: " + src);
+      done();
+    };
+
+    a.addEventListener("ended", done);
+    a.addEventListener("error", onErr);
+
+    const p = a.play();
+    if(p && typeof p.catch === "function"){
+      p.catch(()=>{
+        setSoundStatus("Browser blokkeert audio, tik 1x op het scherm");
+        done();
+      });
+    }
+  });
+}
+
+function enqueue(src, vol = 1.0){
+  const myToken = queueToken;
+  audioQueue = audioQueue.then(()=>{
+    if(myToken !== queueToken) return;
+    return playClip(src, vol);
+  }).catch(()=>{});
+  return audioQueue;
+}
+
+function randFrom(list){ return list[Math.floor(Math.random() * list.length)]; }
+
+function letterAudio(letter){
+  return `audio/letters/letter_${letter}.mp3`;
+}
+
+const OPDRACHT = [
+  "audio/opdracht/opdracht_01.mp3",
+  "audio/opdracht/opdracht_02.mp3",
+  "audio/opdracht/opdracht_03.mp3",
+  "audio/opdracht/opdracht_04.mp3",
+  "audio/opdracht/opdracht_05.mp3"
+];
+
+const GOED = [
+  "audio/goed/goed_01.mp3",
+  "audio/goed/goed_02.mp3",
+  "audio/goed/goed_03.mp3",
+  "audio/goed/goed_04.mp3"
+];
+
+const FOUT = [
+  "audio/fout/fout_01.mp3",
+  "audio/fout/fout_02.mp3",
+  "audio/fout/fout_03.mp3"
+];
+
+const LEVEL = [
+  "audio/level/level_01.mp3",
+  "audio/level/level_02.mp3",
+  "audio/level/level_03.mp3"
+];
+
+const PREFIX_EN_NU_DE = "audio/prefix/en_nu_de.mp3";
+const TEL = {
+  2: "audio/tel/tel_2.mp3",
+  3: "audio/tel/tel_3.mp3",
+  4: "audio/tel/tel_4.mp3",
+  5: "audio/tel/tel_5.mp3"
+};
+
+function speakOpdracht(letter, attemptNumber = 1){
+  if(!soundOn) return Promise.resolve();
+
+  const now = performance.now();
+  if(now - lastSpokenAt < 260) return Promise.resolve();
+  lastSpokenAt = now;
+
+  stopAllAudio();
+
+  if(speechMode === "calm"){
+    enqueue(randFrom(OPDRACHT), 1.0);
+    return enqueue(letterAudio(letter), 1.0);
+  }
+
+  if(attemptNumber >= 2 && attemptNumber <= 5){
+    enqueue(PREFIX_EN_NU_DE, 1.0);
+    enqueue(TEL[attemptNumber], 1.0);
+  }
+
+  enqueue(randFrom(OPDRACHT), 1.0);
+  return enqueue(letterAudio(letter), 1.0);
+}
+
+function speakGoed(letter){
+  if(!soundOn) return;
+
+  stopAllAudio();
+
+  const now = performance.now();
+  if(now - lastSpokenAt < 160) return;
+  lastSpokenAt = now;
+
+  enqueue(randFrom(GOED), 1.0);
+  enqueue(letterAudio(letter), 1.0);
+}
+
+function speakFout(letter){
+  if(!soundOn) return;
+
+  stopAllAudio();
+
+  const now = performance.now();
+  if(now - lastSpokenAt < 180) return;
+  lastSpokenAt = now;
+
+  if(speechMode === "calm"){
+    enqueue(randFrom(OPDRACHT), 1.0);
+    enqueue(letterAudio(letter), 1.0);
+    return;
+  }
+
+  enqueue(randFrom(FOUT), 1.0);
+  enqueue(randFrom(OPDRACHT), 1.0);
+  enqueue(letterAudio(letter), 1.0);
+}
+
+function speakLevel(){
+  if(!soundOn) return Promise.resolve();
+  stopAllAudio();
+  return enqueue(randFrom(LEVEL), 1.0);
+}
+
+if(btnTestSound){
+  btnTestSound.addEventListener("click", async ()=>{
+    unlockAudio();
+    if(!soundOn){ setSoundStatus("Geluid staat uit"); return; }
+
+    stopAllAudio();
+    await beep(820, 160, 0.14);
+
+    stopAllAudio();
+    speakOpdracht(targetLetter, 1);
+    enqueue(randFrom(GOED), 1.0);
+  });
+}
+
+/* ===== Instelbare letters en doelherhaling ===== */
+const STORAGE_KEY = "letter_race_settings_v3";
+
+function normalizeLetters(str){
+  const clean = (str || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+  const uniq = [];
+  for(const ch of clean){
+    if(!uniq.includes(ch)) uniq.push(ch);
+  }
+  return uniq;
+}
+
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){
+    return null;
+  }
+}
+
+function saveSettings(obj){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+  }catch(e){}
+}
+
+const DEFAULT_POOL = "abcdefghijklmnopqrstuvwxyz".split("");
+
+const letterChipRefs = [];
+
+function setAllLetters(checked){
+  for(const ref of letterChipRefs){
+    ref.cb.checked = checked;
+    ref.sync();
+  }
+}
+
+if(btnAllOn) onPress(btnAllOn, ()=> setAllLetters(true));
+if(btnAllOff) onPress(btnAllOff, ()=> setAllLetters(false));
+
+function buildLettersGrid(){
+  if(!lettersGrid) return;
+
+  lettersGrid.innerHTML = "";
+  lettersGrid.style.touchAction = "manipulation";
+  letterChipRefs.length = 0;
+
+  for(const ch of DEFAULT_POOL){
+    const lab = document.createElement("div");
+    lab.className = "letterChip";
+    lab.setAttribute("role", "checkbox");
+    lab.setAttribute("aria-label", "letter " + ch);
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = ch;
+    cb.checked = allowedLetters.includes(ch);
+
+    const span = document.createElement("span");
+    span.textContent = ch;
+
+    const sync = ()=>{
+      lab.classList.toggle("on", cb.checked);
+      lab.classList.toggle("off", !cb.checked);
+      lab.setAttribute("aria-checked", cb.checked ? "true" : "false");
+    };
+
+    const toggle = ()=>{
+      cb.checked = !cb.checked;
+      sync();
+    };
+
+    cb.addEventListener("change", sync);
+    onPress(lab, toggle);
+
+    letterChipRefs.push({ cb, sync });
+
+    lab.appendChild(cb);
+    lab.appendChild(span);
+    lettersGrid.appendChild(lab);
+
+    sync();
+  }
+}
+
+function getCheckedLetters(){
+  if(!lettersGrid) return DEFAULT_POOL.slice();
+  const cbs = lettersGrid.querySelectorAll("input[type=checkbox]");
+  const out = [];
+  for(const cb of cbs){
+    if(cb.checked) out.push(cb.value);
+  }
+  return out.length ? out : ["a"];
+}
+
+const FORCE_OFF_LETTERS = ["c","x","y"];
+const MIGRATION_CXY_KEY = "letter_race_migrate_cxy_off_v1";
+
+let allowedLetters = DEFAULT_POOL.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+let requiredHits = 5;
+
+/* iets rustiger als standaard */
+let speedFactor = 0.85;
+
+const speedSlider = document.getElementById("speedSlider");
+const speedHint = document.getElementById("speedHint");
+function updateSpeedUi(){
+  if(!speedHint) return;
+  const pct = Math.round(speedFactor * 100);
+  speedHint.textContent = "Tempo: " + pct + "%, 100% is normaal";
+}
+if(speedSlider){
+  speedSlider.value = String(Math.round(speedFactor * 100));
+  updateSpeedUi();
+  speedSlider.addEventListener("input", ()=>{
+    speedFactor = clamp(Number(speedSlider.value) / 100, 0.55, 1.0);
+    updateSpeedUi();
+  });
+}
+
+const saved = loadSettings();
+if(saved){
+  const maybeLetters = normalizeLetters(saved.letters || "");
+  if(maybeLetters.length) allowedLetters = maybeLetters.filter(ch=>DEFAULT_POOL.includes(ch));
+  const n = Number(saved.requiredHits);
+  if(Number.isFinite(n)) requiredHits = clamp(Math.floor(n), 1, 20);
+
+  const sf = Number(saved.speedFactor);
+  if(Number.isFinite(sf)) speedFactor = clamp(sf, 0.55, 1.0);
+  if(speedSlider){
+    speedSlider.value = String(Math.round(speedFactor * 100));
+    updateSpeedUi();
+  }
+}
+
+try{
+  const migrated = localStorage.getItem(MIGRATION_CXY_KEY) === "1";
+  if(!migrated){
+    const before = allowedLetters.join("");
+    allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+    if(!allowedLetters.length) allowedLetters = ["a"];
+    const after = allowedLetters.join("");
+    if(before !== after){
+      saveSettings({ letters: after, requiredHits, speedFactor });
+    }
+    localStorage.setItem(MIGRATION_CXY_KEY, "1");
+  }
+}catch(e){
+  allowedLetters = allowedLetters.filter(ch => !FORCE_OFF_LETTERS.includes(ch));
+  if(!allowedLetters.length) allowedLetters = ["a"];
+}
+
+let targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
+let remainingHits = requiredHits;
+
+function flashNewLetter(){
+  uiSpeech.classList.remove("change");
+  uiCoachLetter.classList.remove("change");
+  uiTagNew.classList.remove("show");
+
+  void uiSpeech.offsetWidth;
+
+  uiSpeech.classList.add("change");
+  uiCoachLetter.classList.add("change");
+  uiTagNew.classList.add("show");
+
+  setTimeout(()=>{
+    uiSpeech.classList.remove("change");
+    uiCoachLetter.classList.remove("change");
+    uiTagNew.classList.remove("show");
+  }, 760);
+}
+
+function updateCoachLetter(doFlash){
+  uiCoachLetter.textContent = targetLetter;
+  updateProgressDots();
+  if(doFlash) flashNewLetter();
+}
+
+function updateProgressDots(){
+  const total = clamp(requiredHits, 1, 20);
+  const done = clamp(total - remainingHits, 0, total);
+
+  uiProgress.innerHTML = "";
+  for(let i=0; i<total; i++){
+    const dot = document.createElement("span");
+    dot.className = "dot" + (i < done ? " filled" : "");
+    uiProgress.appendChild(dot);
+  }
+}
+
+/* ===== Coureur mood ===== */
+let coachMoodTimer = 0;
+
+function setCoachMood(mood, frames = 50){
+  coachMoodTimer = frames;
+
+  if(mood === "happy") coachImgEl.style.backgroundImage = "url(coureur_blij.png)";
+  else if(mood === "sad") coachImgEl.style.backgroundImage = "url(coureur_sip.png)";
+  else if(mood === "trophy") coachImgEl.style.backgroundImage = "url(coureur_beker.png)";
+  else coachImgEl.style.backgroundImage = "url(coureur1.png)";
+}
+
+/* ===== Confetti ===== */
+function spawnConfetti(){
+  const confettiEl = document.getElementById("confetti");
+  confettiEl.innerHTML = "";
+  confettiEl.style.display = "block";
+
+  const n = 34;
+  for(let i=0; i<n; i++){
+    const p = document.createElement("div");
+    p.className = "confettiPiece";
+
+    const left = Math.random() * 100;
+    const delay = Math.random() * 220;
+    const w = 8 + Math.random() * 10;
+    const h = 12 + Math.random() * 14;
+
+    const hue = Math.floor(Math.random() * 360);
+    p.style.left = left + "vw";
+    p.style.width = w + "px";
+    p.style.height = h + "px";
+    p.style.background = `hsl(${hue} 90% 60%)`;
+    p.style.animationDelay = delay + "ms";
+
+    confettiEl.appendChild(p);
+  }
+
+  setTimeout(()=>{
+    confettiEl.style.display = "none";
+    confettiEl.innerHTML = "";
+  }, 1250);
+}
+
+/* ===== Trofee animatie ===== */
+let trophyAnimating = false;
+let intermission = false;
+
+function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+function easeInOutQuad(t){ return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2)/2; }
+
+function waitForImage(el){
+  return new Promise((resolve)=>{
+    if(el && el.complete && el.naturalWidth) return resolve();
+    const done = ()=> resolve();
+    el.addEventListener("load", done, { once:true });
+    el.addEventListener("error", done, { once:true });
+  });
+}
+
+function setTrophyPose(x, y, s, a, glow=0){
+  trophyEl.style.opacity = String(a);
+  trophyEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${s})`;
+  trophyEl.style.filter = `drop-shadow(0 18px 30px rgba(0,0,0,0.42)) drop-shadow(0 0 ${glow}px rgba(255,220,120,0.85))`;
+}
+
+function playTrophyAnimation(onDone){
+  trophyAnimating = true;
+  trophyEl.style.display = "block";
+
+  const startX = innerWidth * 0.5;
+  const startY = innerHeight * 0.46;
+
+  const r = coachImgEl.getBoundingClientRect();
+  const endX = r.left + r.width * 0.55;
+  const endY = r.top + r.height * 0.50;
+
+  const phase0 = 60;
+  const phase1 = 520;
+  const phase2 = 980;
+  const startTime = performance.now();
+
+  setTrophyPose(startX, startY, 1.60, 0.0, 0);
+
+  waitForImage(trophyEl).then(()=>{
+
+    function tick(now){
+      const elapsed = now - startTime;
+
+      if(elapsed < phase0){
+        const t = elapsed / phase0;
+        setTrophyPose(startX, startY, lerp(1.60, 1.42, t), lerp(0.0, 1.0, t), lerp(0, 12, t));
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      if(elapsed < phase0 + phase1){
+        const t = easeOutCubic((elapsed - phase0) / phase1);
+        const bob = Math.sin((elapsed - phase0) / 85) * 7;
+        const s = lerp(1.42, 1.08, t);
+        const glow = lerp(12, 26, t);
+        setTrophyPose(startX, startY + bob, s, 1.0, glow);
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      const e2 = elapsed - phase0 - phase1;
+      if(e2 < phase2){
+        const t = easeInOutQuad(e2 / phase2);
+        const x = lerp(startX, endX, t);
+        const y = lerp(startY, endY, t);
+        const s = lerp(1.08, 0.32, t);
+        const glow = lerp(26, 8, t);
+        const a = (t < 0.88) ? 1.0 : lerp(1.0, 0.0, (t - 0.88) / 0.12);
+        setTrophyPose(x, y, s, a, glow);
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      trophyEl.style.display = "none";
+      trophyEl.style.opacity = "0";
+      trophyAnimating = false;
+      if(typeof onDone === "function") onDone();
+    }
+
+    requestAnimationFrame(tick);
+  });
+}
+
+async function onLevelCompleted(){
+  intermission = true;
+
+  items.length = 0;
+  spawnTimer = 0;
+
+  const levelAudio = speakLevel();
+
+  spawnConfetti();
+  setCoachMood("trophy", 120);
+
+  playTrophyAnimation(async ()=>{
+    try{ await Promise.resolve(levelAudio); }catch(e){}
+
+    setCoachMood("neutral", 0);
+    try{ await Promise.resolve(nextTargetLetter()); }catch(e){}
+
+    intermission = false;
+  });
+}
+
+/* ===== Verborgen menu openen ===== */
+let longPressTimer = null;
+const LONG_PRESS_MS = 650;
+
+let tapCount = 0;
+let tapTimer = null;
+const TAP_WINDOW_MS = 520;
+
+function registerTap(){
+  tapCount++;
+  if(tapTimer) clearTimeout(tapTimer);
+
+  if(tapCount >= 3){
+    tapCount = 0;
+    if(tapTimer){ clearTimeout(tapTimer); tapTimer = null; }
+    openSettings();
+    return;
+  }
+
+  tapTimer = setTimeout(()=>{
+    tapCount = 0;
+    tapTimer = null;
+  }, TAP_WINDOW_MS);
+}
+
+function armLongPress(){
+  disarmLongPress();
+  longPressTimer = setTimeout(()=>{
+    longPressTimer = null;
+    openSettings();
+  }, LONG_PRESS_MS);
+}
+
+function disarmLongPress(){
+  if(longPressTimer){
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+const secretHotspot = document.getElementById("secretHotspot");
+
+function bindSecretTriggers(el){
+  if(!el) return;
+
+  el.addEventListener("contextmenu", (e)=> e.preventDefault());
+  el.addEventListener("selectstart", (e)=> e.preventDefault());
+
+  onPress(el, ()=>{
+    unlockAudio();
+    if(!(settingsOverlay && settingsOverlay.style.display === "flex")){
+      registerTap();
+      armLongPress();
+    }
+  });
+
+  el.addEventListener("pointerup", ()=> disarmLongPress());
+  el.addEventListener("pointercancel", ()=> disarmLongPress());
+  el.addEventListener("pointerleave", ()=> disarmLongPress());
+}
+
+bindSecretTriggers(document.getElementById("coach"));
+bindSecretTriggers(coachImgEl);
+bindSecretTriggers(secretHotspot);
+
+btnClose.addEventListener("click", ()=> closeSettings());
+
+btnSave.addEventListener("click", ()=>{
+  const nextHits = clamp(Math.floor(Number(hitsInput.value || 5)), 1, 20);
+
+  allowedLetters = getCheckedLetters();
+  requiredHits = nextHits;
+  remainingHits = requiredHits;
+
+  if(speedSlider){
+    speedFactor = clamp(Number(speedSlider.value)/100, 0.55, 1.0);
+    updateSpeedUi();
+  }
+
+  targetLetter = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
+  updateCoachLetter(true);
+  stopAllAudio();
+  speakOpdracht(targetLetter, 1);
+  setCoachMood("neutral", 0);
+
+  saveSettings({ letters: allowedLetters.join(""), requiredHits, speedFactor });
+
+  closeSettings();
+});
+
+/* ===== Spelvariabelen ===== */
+let energy = 100;
+let roadScroll = 0;
+
+const WORLD_TEMPO = 1.0;
+
+/* start iets trager */
+let letterTempo = 1.05;
+const LETTER_TEMPO_MIN = 1.05;
+const LETTER_TEMPO_MAX = 3.00;
+
+const SPEED_UP = 0.10;
+const SPEED_DOWN = 0.10;
+
+const state = { lane: 1, lastTime: performance.now() };
+
+/* auto */
+const car = {
+  x: canvas.width/2,
+  y: canvas.height * 0.88,
+  tilt: 0,
+  steerDx: 0,
+  w: 150,
+  h: 90,
+  scale: 1.20
+};
+
+/* letters */
+const items = [];
+const MAX_ITEMS = 2;
+const SPAWN_FRAMES_BASE = 170;
+
+/* weg geometrie */
+function roadWidthAt(y){
+  const t = clamp(y / canvas.height, 0, 1);
+  return canvas.width * 0.30 + (canvas.width * 0.90 - canvas.width * 0.30) * (t ** 1.6);
+}
+function roadCenterXAt(y){
+  const t = clamp(y / canvas.height, 0, 1);
+  const slow = Math.sin(roadScroll / 720) * (canvas.width * 0.03);
+  return canvas.width / 2 + slow * (1 - t);
+}
+function roadEdgesAt(y){
+  const w = roadWidthAt(y);
+  const cx = roadCenterXAt(y);
+  return { left: cx - w/2, right: cx + w/2, cx, w };
+}
+function laneX(lane, y){
+  const e = roadEdgesAt(y);
+  const laneW = e.w / 3;
+  return e.left + laneW * (lane + 0.5);
+}
+
+/* auto altijd onderaan zichtbaar */
+const CAR_BOTTOM_GAP = 18;
+
+function calcCarSize(){
+  const base = Math.min(canvas.width, canvas.height);
+  const w = Math.max(176, base * 0.300) * car.scale;
+  const h = w * 0.62;
+  return { w, h };
+}
+
+function getSafeBottom(){
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom");
+  return parseFloat(v) || 0;
+}
+
+function syncCarBottom(){
+  const sb = getSafeBottom();
+  const { h } = calcCarSize();
+  car.y = canvas.height - sb - CAR_BOTTOM_GAP - (h / 2);
+}
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener("resize", ()=>{ needCarResync = true; });
+}
+
+/* bomen */
+const trees = [];
+const MAX_TREES = 4;
+const TREE_SPAWN_FRAMES_BASE = 240;
+let treeSpawnTimer = 0;
+
+const TREE_ACCEL_START = 2.48;
+const TREE_ACCEL_END   = 90.0;
+const X_RIGHT_END = 319;
+const X_LEFT_END  = 256;
+
+function spawnTree(){
+  if(trees.length >= MAX_TREES) return;
+  const side = Math.random() < 0.5 ? "left" : "right";
+  const sizeSeed = 0.88 + Math.random() * 0.28;
+
+  trees.push({
+    side,
+    baseY: -460,
+    sizeSeed
+  });
+}
+
+function treeSize(tr){
+  const t = clamp(tr.baseY / canvas.height, 0, 1);
+  const p = t ** 1.05;
+  const w = (18 + p * 1180) * tr.sizeSeed;
+  const h = w * 1.10;
+  return { w, h };
+}
+
+function treeX(tr){
+  const e = roadEdgesAt(tr.baseY);
+  const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+  const marginTop = 46;
+  const marginBottom = tr.side === "left" ? X_LEFT_END : X_RIGHT_END;
+  const margin = lerp(marginTop, marginBottom, t ** 1.15);
+
+  return tr.side === "left" ? (e.left - margin) : (e.right + margin);
+}
+
+function updateTrees(dt){
+  treeSpawnTimer += dt;
+  const threshold = TREE_SPAWN_FRAMES_BASE / WORLD_TEMPO;
+  if(treeSpawnTimer > threshold){
+    treeSpawnTimer = 0;
+    spawnTree();
+  }
+
+  for(let i = trees.length - 1; i >= 0; i--){
+    const tr = trees[i];
+    const t = clamp(tr.baseY / canvas.height, 0, 1);
+
+    const curve = 2.10;
+    const accel = lerp(TREE_ACCEL_START, TREE_ACCEL_END, t ** curve);
+
+    let dy = (accel * WORLD_TEMPO) * dt * 3.0;
+
+    const maxStep = 190 * dt * WORLD_TEMPO;
+    dy = Math.min(dy, maxStep);
+
+    tr.baseY += dy;
+
+    const h = treeSize(tr).h;
+    if(tr.baseY - h > canvas.height + 80) trees.splice(i, 1);
+  }
+}
+
+function drawTrees(){
+  for(const tr of trees){
+    const { w, h } = treeSize(tr);
+    const x = treeX(tr);
+
+    const topY = tr.baseY - h;
+    const shadowY = tr.baseY + h * 0.06;
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    drawEllipse(x, shadowY, w * 0.34, h * 0.12, 0);
+    ctx.fill();
+
+    if(treeImg.complete && treeImg.naturalWidth){
+      ctx.drawImage(treeImg, x - w/2, topY, w, h);
+    }
+  }
+}
+
+/* achtergrond */
+function drawGrass(){
+  ctx.fillStyle = "#3aa64b";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  for(let i=0; i<12; i++){
+    const x = (i * canvas.width / 12) + (Math.sin(roadScroll/210 + i) * 18);
+    const y = (i * 140 + roadScroll * 1.25) % (canvas.height + 220) - 110;
+    ctx.fillStyle = "rgba(0,0,0,0.05)";
+    ctx.beginPath();
+    drawEllipse(x, y, 120, 60, 0);
+    ctx.fill();
+  }
+}
+
+/* weg */
+function drawRoad(){
+  const pts = [];
+  for(let y=0; y<=canvas.height+28; y+=28){
+    const e = roadEdgesAt(y);
+    pts.push({ y, left: e.left, right: e.right, cx: e.cx, w: e.w });
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].left, pts[0].y);
+  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left, pts[i].y);
+  for(let i=pts.length-1; i>=0; i--) ctx.lineTo(pts[i].right, pts[i].y);
+  ctx.closePath();
+  ctx.fillStyle = "#505050";
+  ctx.fill();
+
+  for(let i=0; i<pts.length-1; i++){
+    const p1 = pts[i];
+    const p2 = pts[i+1];
+    const t = clamp(p1.y / canvas.height, 0, 1);
+
+    const bandW = 3 + t * 22;
+    const offset = bandW * 0.75;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.20)";
+    ctx.lineWidth = bandW;
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(p1.left - offset, p1.y);
+    ctx.lineTo(p2.left - offset, p2.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(p1.right + offset, p1.y);
+    ctx.lineTo(p2.right + offset, p2.y);
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "rgba(255,255,255,0.60)";
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].left + 3, pts[0].y);
+  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].left + 3, pts[i].y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0].right - 3, pts[0].y);
+  for(let i=1; i<pts.length; i++) ctx.lineTo(pts[i].right - 3, pts[i].y);
+  ctx.stroke();
+
+  const H = canvas.height;
+  const projScale = 0.0042;
+
+  function yFromS(s){
+    return H / (1 + s * projScale);
+  }
+
+  const periodS = 260;
+  const dashS = 105;
+  const sOffset = (periodS - (roadScroll % periodS)) % periodS;
+
+  let guard = 0;
+  const GUARD_MAX = 220;
+
+  for(let s = sOffset; ; s += periodS){
+    guard++;
+    if(guard > GUARD_MAX) break;
+
+    const y1 = yFromS(s);
+    if(y1 <= 0.5) break;
+
+    const y2 = yFromS(s + dashS);
+    const cx = roadCenterXAt(y1);
+    const t = clamp(y1 / H, 0, 1);
+
+    ctx.strokeStyle = "rgba(255,245,190,0.80)";
+    ctx.lineWidth = lerp(8, 22, t);
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(cx, y1);
+    ctx.lineTo(cx, y2);
+    ctx.stroke();
+  }
+}
+
+/* letters */
+function mix(a, b, t){ return Math.round(a + (b - a) * t); }
+
+function targetBgRgba(){
+  const blue = { r:170, g:225, b:255 };
+  const yellow = { r:255, g:220, b:120 };
+  const alpha = 0.95;
+
+  const steps = Math.min(Math.max(requiredHits - 1, 0), 3);
+  if(steps === 0){
+    return `rgba(${yellow.r},${yellow.g},${yellow.b},${alpha})`;
+  }
+
+  const stage = clamp(requiredHits - remainingHits, 0, steps);
+  const t = stage / steps;
+
+  const r = mix(blue.r, yellow.r, t);
+  const g = mix(blue.g, yellow.g, t);
+  const b = mix(blue.b, yellow.b, t);
+
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function drawItem(it){
+  const t = clamp(it.y / canvas.height, 0, 1);
+  const size = 26 + t * 125;
+  const fontSize = Math.floor(14 + t * 58);
+
+  const other = "rgba(255,220,120,0.95)";
+  ctx.fillStyle = it.isTarget ? targetBgRgba() : other;
+  ctx.fillRect(it.x - size/2, it.y - size/2, size, size);
+
+  ctx.fillStyle = "#111";
+  ctx.font = `700 ${fontSize}px "Century Gothic", "CenturyGothic", Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(it.letter, it.x, it.y);
+}
+
+function pickNonTargetLetter(){
+  if(allowedLetters.length <= 1) return allowedLetters[0] || "a";
+  let ch = targetLetter;
+  let guard = 0;
+  while(ch === targetLetter && guard < 30){
+    ch = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
+    guard++;
+  }
+  return ch;
+}
+
+function spawnLetter(){
+  if(items.length >= MAX_ITEMS) return;
+
+  const lane = Math.floor(Math.random() * 3);
+  const isTarget = Math.random() < 0.33;
+  const letter = isTarget ? targetLetter : pickNonTargetLetter();
+
+  items.push({
+    lane,
+    y: -70,
+    letter,
+    isTarget,
+    vy: 6.0
+  });
+}
+
+let spawnTimer = 0;
+
+/* auto tekenen */
+function chooseCarSprite(){
+  if(car.steerDx < -18) return carLeft;
+  if(car.steerDx > 18) return carRight;
+  return carStraight;
+}
+
+function drawCar(){
+  const base = Math.min(canvas.width, canvas.height);
+  const w = Math.max(176, base * 0.300) * car.scale;
+  const h = w * 0.62;
+
+  car.w = w;
+  car.h = h;
+
+  const img = chooseCarSprite();
+
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.tilt * 0.40);
+
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
+  ctx.beginPath();
+  drawEllipse(0, h * 0.36, w * 0.34, h * 0.22, 0);
+  ctx.fill();
+
+  if(img.complete && img.naturalWidth){
+    ctx.drawImage(img, -w/2, -h/2, w, h);
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    const r = Math.max(10, Math.min(22, w * 0.08));
+    roundRect(-w/2, -h/2, w, h, r);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(0,0,0,0.18)";
+    ctx.lineWidth = Math.max(2, w * 0.02);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    roundRect(-w*0.20, -h*0.22, w*0.40, h*0.26, r*0.6);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function nextTargetLetter(){
+  if(!allowedLetters.length) allowedLetters = ["a"];
+
+  let next = targetLetter;
+  if(allowedLetters.length === 1){
+    next = allowedLetters[0];
+  } else {
+    let guard = 0;
+    while(next === targetLetter && guard < 30){
+      next = allowedLetters[Math.floor(Math.random() * allowedLetters.length)];
+      guard++;
+    }
+  }
+
+  targetLetter = next;
+  remainingHits = requiredHits;
+  updateCoachLetter(true);
+  return speakOpdracht(targetLetter, 1);
+}
+
+/* update en draw */
+function update(dt){
+  if(coachMoodTimer > 0){
+    coachMoodTimer -= dt;
+    if(coachMoodTimer <= 0){
+      if(!trophyAnimating) setCoachMood("neutral", 0);
+    }
+  }
+
+  if(intermission){
+    roadScroll += (9.2 * WORLD_TEMPO) * dt;
+    updateTrees(dt);
+    return;
+  }
+
+  energy = Math.max(0, energy - 0.018 * dt);
+
+  roadScroll += (9.2 * WORLD_TEMPO) * dt;
+
+  const targetX = laneX(state.lane, car.y);
+  const dx = targetX - car.x;
+  car.steerDx = dx;
+  car.x += dx * (0.085 * dt);
+  car.tilt += (clamp(dx / (canvas.width * 0.75), -0.28, 0.28) - car.tilt) * (0.09 * dt);
+
+  spawnTimer += dt;
+  const spawnThreshold = SPAWN_FRAMES_BASE / (letterTempo * speedFactor);
+  if(spawnTimer > spawnThreshold){
+    spawnTimer = 0;
+    spawnLetter();
+  }
+
+  for(let i = items.length - 1; i >= 0; i--){
+    const it = items[i];
+    it.y += (it.vy * letterTempo * speedFactor) * dt;
+    it.x = laneX(it.lane, it.y);
+
+    const hit = Math.abs(it.x - car.x) < car.w * 0.36 && Math.abs(it.y - car.y) < car.h * 0.36;
+
+    if(hit){
+      if(it.isTarget){
+        setCoachMood("happy", 55);
+        letterTempo = clamp(letterTempo + SPEED_UP, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
+
+        remainingHits = Math.max(0, remainingHits - 1);
+        updateProgressDots();
+        stopAllAudio();
+        speakGoed(targetLetter);
+
+        if(remainingHits <= 0 && !trophyAnimating){
+          onLevelCompleted();
+        }
+      } else {
+        setCoachMood("sad", 65);
+        letterTempo = clamp(letterTempo - SPEED_DOWN, LETTER_TEMPO_MIN, LETTER_TEMPO_MAX);
+        speakFout(targetLetter);
+        if(remainingHits < requiredHits){
+          remainingHits = Math.min(requiredHits, remainingHits + 1);
+          updateProgressDots();
+        }
+      }
+
+      energy = Math.min(140, energy + 10);
+      items.splice(i, 1);
+      continue;
+    }
+
+    if(it.y > canvas.height + 160){
+      items.splice(i, 1);
+    }
+  }
+
+  updateTrees(dt);
+}
+
+function draw(){
+  drawGrass();
+  drawRoad();
+
+  for(const it of items) drawItem(it);
+  drawCar();
+  drawTrees();
+}
+
+function loop(now){
+  const dt = Math.min(3, (now - state.lastTime) / (1000/60));
+  state.lastTime = now;
+
+  if(needCarResync){
+    syncCarBottom();
+    needCarResync = false;
+  }
+
+  if(energy > 0 && settingsOverlay.style.display !== "flex" && !trophyAnimating) update(dt);
+  draw();
+
+  requestAnimationFrame(loop);
+}
+
+/* KEYBOARD_LANES_V23 */
+addEventListener("keydown", (e)=>{
+  if(e.key === "ArrowLeft"){
+    e.preventDefault();
+    state.lane = Math.max(0, state.lane - 1);
+  }else if(e.key === "ArrowRight"){
+    e.preventDefault();
+    state.lane = Math.min(2, state.lane + 1);
+  }
+});
+
+canvas.addEventListener("pointerdown", (e)=>{
+  unlockAudio();
+  startBgm();
+  if(settingsOverlay.style.display === "flex") return;
+  if(trophyAnimating) return;
+
+  const x = e.clientX;
+  if(x < canvas.width / 3) state.lane = 0;
+  else if(x < canvas.width * 2 / 3) state.lane = 1;
+  else state.lane = 2;
+});
+
+document.addEventListener("contextmenu", (e)=>{
+  const coachImg = document.getElementById("coachImg");
+  if(coachImg && (e.target === coachImg || coachImg.contains(e.target))) e.preventDefault();
+}, { capture:true });
+
+/* start */
+updateCoachLetter(true);
+stopAllAudio();
+speakOpdracht(targetLetter, 1);
+requestAnimationFrame(loop);
+
+</script>
+
+</body>
+</html>
